@@ -19,6 +19,10 @@ class SchemaTest(unittest.TestCase):
         for field in ["title","content"]:
             self.assertEqual(field in schema.fields,True)
 
+    def test_use_reserved_keywords(self):
+        with self.assertRaises(schema.Schema.SchemaError):
+            BrokenSchema()
+
 class BaseTest(unittest.TestCase):
 
     def setUp(self):
@@ -27,20 +31,21 @@ class BaseTest(unittest.TestCase):
             "England is in Europe.",            
             "Paris is the captial of france.",
         ]
-        self.pocket_search = index.PocketSearch()
+        self.pocket_search = index.PocketSearch(writeable=True)
         for elem in self.data:
             self.pocket_search.insert(content=elem) 
 
-class IndexText(BaseTest):
+class IndexTest(BaseTest):
 
-    def test_use_reserved_keywords(self):
-        with self.assertRaises(schema.Schema.SchemaError):
-            BrokenSchema()
+    def test_write_to_read_only_index(self):
+        pocket_search = index.PocketSearch(writeable=False)
+        with self.assertRaises(pocket_search.IndexError):
+            pocket_search.insert(content="21")
 
     def test_unknown_field(self):
-        pocket_search = index.PocketSearch()
+        pocket_search = index.PocketSearch(writeable=True)
         with self.assertRaises(pocket_search.FieldError):
-            pocket_search.insert(non_existing_field="21")
+            pocket_search.insert(non_existing_field_in_schema="21")
 
     def test_count(self):
         self.assertEqual(self.pocket_search.search(content="is").count(),3)
@@ -48,7 +53,7 @@ class IndexText(BaseTest):
 
     def test_indexing(self):
         self.assertEqual(self.pocket_search.search(content="fence")[0].content,self.data[0])
-        self.assertEqual(self.pocket_search.search(content="is")[2].content,self.data[0])
+        self.assertEqual(self.pocket_search.search(content="is")[0].content,self.data[0])
 
     def test_get_all(self):
         self.assertEqual(self.pocket_search.search().count(),3)
@@ -56,20 +61,40 @@ class IndexText(BaseTest):
     def test_get_rowid(self):
         self.pocket_search.search()[0].rowid
 
+    def test_slicing_open(self):
+        with self.assertRaises(index.Query.QueryError):
+            results = self.pocket_search.search(content="is")[0:]
+
+    def test_negative_slicing_start(self):
+        with self.assertRaises(index.Query.QueryError):
+            results = self.pocket_search.search(content="is")[-1:]
+
+    def test_negative_slicing_end(self):
+        with self.assertRaises(index.Query.QueryError):
+            results = self.pocket_search.search(content="is")[:-4]
+
+    def test_start_stop_none(self):
+        with self.assertRaises(index.Query.QueryError):
+            self.pocket_search.search(content="is")[:]
+
+    def test_non_numeric_index(self):
+        with self.assertRaises(index.Query.QueryError):
+            self.pocket_search.search(content="is")["a"]
+
     def test_slicing(self):
         results = self.pocket_search.search(content="is")[0:2]
-        self.assertEqual(results[0].content,self.data[1])
-        self.assertEqual(results[1].content,self.data[2])
+        self.assertEqual(results[0].content,self.data[0])
+        self.assertEqual(results[1].content,self.data[1])
 
     def test_iteration(self):
         for idx,item in enumerate(self.pocket_search.search(content="is")):
             item.content # just check, if it possible to call the attribute
 
     def test_order_by(self):
-        query = self.pocket_search.search(content="is").order_by("content")
-        self.assertEqual(query[0].content,self.data[1])
-        self.assertEqual(query[1].content,self.data[2])
-        self.assertEqual(query[2].content,self.data[0])
+        r = self.pocket_search.search(content="is").order_by("content")
+        self.assertEqual(r[0].content,self.data[0])
+        self.assertEqual(r[1].content,self.data[1])
+        self.assertEqual(r[2].content,self.data[2])
 
 class IndexUpdateTests(BaseTest):
 
@@ -100,12 +125,12 @@ class CharacterTest(unittest.TestCase):
             "bleɪd",
             "(bracket)",
             "(bracket )",            
-            "(bracket]",    
+                "(bracket]",    
             "U.S.A."   ,
             "ˌrʌnɚ"  ,
             "'x'"   
         ]
-        self.pocket_search = index.PocketSearch()
+        self.pocket_search = index.PocketSearch(writeable=True)
         for elem in self.data:
             self.pocket_search.insert(content=elem)    
 
@@ -145,12 +170,23 @@ class MultipleFieldIndexTest(unittest.TestCase):
         self.data = [
             ("Blade Runner","Blade Runner [bleɪd ˌrʌnɚ], deutscher Verleihtitel zeitweise auch Der Blade Runner, ist ein am 25. Juni 1982 erschienener US-amerikanischer Science-Fiction-Film des Regisseurs Ridley Scott."),
         ]
-        self.pocket_search = index.PocketSearch(schema=Movie)
+        self.pocket_search = index.PocketSearch(schema=Movie,writeable=True)
         for title , content in self.data:
             self.pocket_search.insert(title=title,content=content)
 
     def test_all_fields_available_in_results(self):
         self.assertEqual(self.pocket_search.search(content="ˌrʌnɚ")[0].title,"Blade Runner")
+
+    def test_set_values_in_results(self):
+        self.assertEqual(self.pocket_search.search(content="ˌrʌnɚ").values("title")[0].title,"Blade Runner")
+
+    def test_set_non_existing_field_in_results(self):
+        with(self.assertRaises(index.Query.QueryError)):
+            self.assertEqual(self.pocket_search.search(content="ˌrʌnɚ").values("title323232")[0].title,"Blade Runner")
+
+    def test_set_illegal_order_by(self):
+        with(self.assertRaises(index.Query.QueryError)):
+            self.assertEqual(self.pocket_search.search(content="ˌrʌnɚ").order_by("title323232")[0].title,"Blade Runner")
 
     def test_search_movie(self):
         self.assertEqual(self.pocket_search.search(content="Blade").count(),1)

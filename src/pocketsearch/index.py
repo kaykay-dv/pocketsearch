@@ -33,86 +33,227 @@ class Document:
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f,getattr(self,f)) for f in self.fields])
 
+class SQLElement:
+
+    def __init__(self,field,value=None):
+        self.field = field
+        self.value = value
+
+    def field_to_sql(self):
+        raise NotImplementedError()
+
+    def value_to_arg(self):
+        if self.value is None:
+            return self.value
+        return ['%s' % self.value]
+
+    def __repr__(self):
+        if self.value is not  None:
+            return "<%s:%s=%s>" % (self.__class__.__name__, self.field,self.value)
+        else:
+            return "<%s:%s>" % (self.__class__.__name__, self.field)
+
+class ExactFilter(SQLElement):
+
+    def field_to_sql(self):
+        return "%s match ?" % self.field
+
+    def value_to_arg(self):
+        # Interpret value as given. This 
+        # will ignore any AND OR commands:
+        return ['"%s"' % self.value]
+
+class SelectField(SQLElement):
+
+    def field_to_sql(self):
+        return self.field
+
+class OrderBy(SQLElement):
+
+    def field_to_sql(self):
+        if self.field.startswith("+"):
+            d = "ASC"
+        elif self.field.startswith("-"):
+            d = "DESC"
+        else:
+            d = "ASC"       
+        return "? %s" % d
+    
+    def value_to_arg(self):
+        if self.field.startswith("+") or self.field.startswith("-"):
+            return [self.field[1:]]
+        return [self.field]
+
+class LimitAndOffset(SQLElement):
+
+    def field_to_sql(self):
+        return "LIMIT ? OFFSET ?"
+    
+    def value_to_arg(self):
+        limit , offset = self.value
+        return [limit , offset]
+
+class SQLElementList:
+    
+    def __init__(self):
+        self.elements=[]
+
+    def __add__(self,filter):
+        self.elements.append(filter)
+        return self
+    
+    def __getitem__(self,idx):
+        return self.elements[idx]
+
+    def __len__(self):
+        return len(self.elements)
+
+    def fields_to_sql(self):
+        o = []
+        for f in self.elements:
+            o.append(f.field_to_sql())
+        return ", ".join(o)
+    
+    def values_to_sql_arguments(self):
+        o = []
+        for f in self.elements:
+            o.append(f.value_to_arg())
+        return o
+
+class WhereClauseElementList(SQLElementList):
+
+    def fields_to_sql(self):
+        o = []
+        for f in self.elements:
+            o.append(f.field_to_sql())
+        return " and ".join(o)    
+
 class Query:
+
+    class QueryError(Exception):pass
+
+    COUNT_EXPR=" count(*) "
 
     def __init__(self,search_instance,fields,values):
         self.search_instance=search_instance
-        self.fields = fields
-        self.values = values
+        self.where_fields = fields
+        self.where_values = values
+        # Default fields that are returned in search results 
+        # if not explicitley set in the .values method:
+        self.result_fields = ["rowid"] + self.search_instance.schema.get_fields() + ["rank"]
+        self.order_by_fields = ["rank"]
         self.offset = 0
         self.limit  = 20
-        self._order_by = [] 
-
-    def order_by(self,*args):
-        for o in args:
-            if o.startswith("+"):
-                direction = "asc"
-            elif o.startswith("-"):
-                direction = "desc"
-            else:
-                direction = "asc"
-            self._order_by.append(" %s %s " % (o,direction))
-        return self
-
-    def _where_clause(self):
-        clause=[]
-        for idx, f in enumerate(self.fields):
-            clause.append(" %s match '\"%s\"' " % (f , self.values[idx]))
-        if len(clause) > 0:
-            return " where " + " and ".join(clause)
-        return ""
-
-    def _query(self):
-        search_fields = ["rowid"] + self.fields + ["rank"]
-        #["highlight(%s,0,'[',']')" % f for f in self.fields]
-        #["highlight(%s,0,'[',']')" % f for f in self.search_instance.schema.get_fields()]
-        result_fields = ["rowid"] + self.search_instance.schema.get_fields() + ["rank"]
-        # FIXME: do proper quoting here, queries like "'x'" will fail.
-        sql = '''
-           select %s from %s %s 
-        ''' % (", ".join(result_fields),
-               self.search_instance.index_name,               
-               self._where_clause())
-        if len(self._order_by)==0:
-            sql+=" order by rank "
-        else:
-            sql+=" order by %s" % "," .join(self._order_by)        
-        sql+=" limit %s offset %s " % (self.limit,self.offset)
-        results = SearchResult()
-        for result in self.search_instance.execute_sql(sql):
-            item=Document(result_fields)
-            for field in result_fields:
-                setattr(item,field,result[field])
-            results = results + item
-        return results
-
-    def __getitem__(self, index):
-        self.offset = index
-        self.limit = 1
-        if isinstance(index, slice):
-            self.offset = index.start
-            self.limit = index.stop
-            return self._query()
-        return self._query()[0]
+        self.is_aggregate_query = False
 
     def count(self):
-        sql = '''
-           select count(*) from %s %s 
-        ''' % (self.search_instance.index_name,self._where_clause())        
-        return self.search_instance.execute_sql(sql).fetchone()[0]
+        self.is_aggregate_query=True
+        self.values(self.COUNT_EXPR)
+        return self._query()
+
+    def order_by(self,*args):
+        self.test_fields_in_schema(args)
+        self.order_by_fields.clear()
+        for a in args:
+            self.order_by_fields.append(a)
+        return self
+
+    def test_in_schema(self,field):
+        if field not in self.search_instance.schema.get_fields() and field != self.COUNT_EXPR:
+            raise self.QueryError("'%s' is not defined in the schema." % field)
+        return True
+
+    def test_fields_in_schema(self,fields):
+        for f in fields:
+            self.test_in_schema(f)
+
+    def values(self,*args):
+        self.test_fields_in_schema(args)
+        self.result_fields.clear()
+        for a in args:
+            self.result_fields.append(a)
+        return self
+
+    def to_sql_elements(self,fields,clazz,values=None,list_clazz=None):
+        if list_clazz is None:
+            element_list = SQLElementList()
+        else:
+            element_list = list_clazz()
+        if fields is None:
+            return element_list + clazz(field=None,value=values)
+        for idx,field in enumerate(fields):
+            if values is None:
+                element_list=element_list + clazz(field=field)
+            else:
+                element_list=element_list + clazz(field=field,value=values[idx])
+        return element_list
+
+    def _build_results(self,results):
+        documents = SearchResult()
+        for result in results:
+            document=Document(result.keys())
+            for field in result.keys():
+                setattr(document,field,result[field])
+            documents = documents + document
+        return documents
+
+    def _query(self):
+        sql_arguments = []
+        stmt = "" 
+        where_list = self.to_sql_elements(self.where_fields,ExactFilter,self.where_values,WhereClauseElementList)
+        if len(where_list) == 0:
+            from_keyword = "FROM %s" % self.search_instance.index_name 
+        else:
+            from_keyword = "FROM %s WHERE" % self.search_instance.index_name 
+        for keyword, sql_element_list in [ ("SELECT" , self.to_sql_elements(self.result_fields,SelectField)) , 
+                                           (from_keyword , where_list) , 
+                                           ("ORDER BY", self.to_sql_elements(self.order_by_fields,OrderBy)), 
+                                           ("", self.to_sql_elements(None,LimitAndOffset,(self.limit,self.offset))),
+                                         ]:
+            stmt+=" %s " % keyword
+            if len(sql_element_list) > 0:
+                stmt+=sql_element_list.fields_to_sql()
+                for arg in sql_element_list.values_to_sql_arguments():
+                    if arg is not None:
+                        sql_arguments = sql_arguments + arg
+        #print(stmt,sql_arguments)
+        if self.is_aggregate_query:
+            return self.search_instance.execute_sql(stmt,*sql_arguments).fetchone()[0]
+        else:
+            return self._build_results(self.search_instance.execute_sql(stmt,*sql_arguments))            
+
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            try:
+                index_start=int(index.start)
+                index_stop=int(index.stop)
+            except Exception:
+                raise self.QueryError("Slicing arguments must be positive integers and not None.")
+            self.offset = index_start
+            self.limit = index_stop
+            return self._query()
+        else:
+            try:
+                self.offset=int(index)
+            except Exception:
+                raise self.QueryError("Index arguments must be positive integers and not None.")
+            self.limit = 1
+        return self._query()[0]
 
     def __iter__(self):
         return iter(self._query())
 
 class PocketSearch:
 
+    class IndexError(Exception):pass
     class FieldError(Exception):pass
     class DocumentDoesNotExist(Exception):pass
 
     def __init__(self,db_name=None,
                       index_name="documents",
                       schema=schema.DefaultSchema,
-                      create_index=True):
+                      writeable=False):
         self.db_name = db_name
         self.index_name = index_name
         self.schema = schema()
@@ -124,11 +265,16 @@ class PocketSearch:
         self.cursor = self.connection.cursor()
         self.db_name = db_name
         self.index_name = index_name
-        if create_index:
+        self.writeable = writeable
+        if writeable:
             self._create_table(index_name)
 
-    def execute_sql(self,sql,commit=False):
-        return self.cursor.execute(sql)
+    def assure_writeable(self):
+        if not(self.writeable):
+            raise self.IndexError("Index '%s' has been opened in read-only mode. Cannot write changes to index." % self.index_name)
+
+    def execute_sql(self,sql,*args):
+        return self.cursor.execute(sql,args)
 
     def _create_table(self,index_name):
         fields=[]
@@ -162,6 +308,7 @@ class PocketSearch:
 
 
     def insert(self,*args,**kwargs):
+        self.assure_writeable()
         fields, values = self.get_arguments(kwargs,for_search=False)
         joined_fields = ",".join(fields)
         placeholder_values = "?" * len(values)
@@ -172,9 +319,9 @@ class PocketSearch:
         self.connection.commit()
 
     def get(self,rowid):
-        sql = "select * from %s where rowid=%s" % (self.index_name,rowid)
+        sql = "select * from %s where rowid=?" % (self.index_name,)
         fields = self.schema.get_fields()
-        doc = self.cursor.execute(sql).fetchone()
+        doc = self.cursor.execute(sql,(rowid,)).fetchone()
         if doc is None:
             raise self.DocumentDoesNotExist()
         document=Document(fields)
@@ -183,18 +330,20 @@ class PocketSearch:
         return document
 
     def update(self,**kwargs):
+        self.assure_writeable()
         docid = kwargs.pop("rowid")
         fields, values = self.get_arguments(kwargs,for_search=False)
         stmt=[]
         for idx,f in enumerate(fields):
             stmt.append("%s='%s'" % (f,values[idx]))
-        sql="update %s set %s where rowid=%s" % (self.index_name,",".join(stmt),docid)
-        self.cursor.execute(sql)
+        sql="update %s set %s where rowid=?" % (self.index_name,",".join(stmt))
+        self.cursor.execute(sql,(docid,))
         self.connection.commit()
 
     def delete(self,rowid):
-        sql = "delete from %s where rowid = %s" % (self.index_name,rowid)
-        self.cursor.execute(sql)
+        self.assure_writeable()
+        sql = "delete from %s where rowid = ?" % (self.index_name)
+        self.cursor.execute(sql,(rowid,))
         self.connection.commit()        
 
     def search(self,**kwargs):
