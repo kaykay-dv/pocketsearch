@@ -1,5 +1,6 @@
 import os
 import time
+import re
 import sqlite3
 import timer
 
@@ -35,6 +36,8 @@ class Document:
 
 class SQLElement:
 
+    class QueryElementError(Exception):pass
+
     def __init__(self,field,value=None):
         self.field = field
         self.value = value
@@ -53,15 +56,37 @@ class SQLElement:
         else:
             return "<%s:%s>" % (self.__class__.__name__, self.field)
 
-class ExactFilter(SQLElement):
+class Filter(SQLElement):
+
+    def escape(self,value):
+        for v in [
+            "AND",
+            "OR",
+            "NOT"
+        ]:
+            # if one of the keywords have been found
+            # we can abort and quote the entire value
+            if value.find(v) != -1:
+                return value.replace(v,'"%s"' % v)
+        for ch in ["*","-","^","."]:
+            if ch in value:
+                return value.replace(value,'"%s"' % value)
+        return value
 
     def field_to_sql(self):
-        return "%s match ?" % self.field
+        if "__" in self.field:
+            try:
+                name , lookup = self.field.split("__")
+            except ValueError:
+                raise self.QueryElementError("'%s' is not a valid lookup." % self.field)
+        else:
+            name = self.field
+        return "%s match ?" % name
 
     def value_to_arg(self):
         # Interpret value as given. This 
         # will ignore any AND OR commands:
-        return ['"%s"' % self.value]
+        return ['%s' % self.escape(self.value)]
 
 class SelectField(SQLElement):
 
@@ -126,7 +151,7 @@ class WhereClauseElementList(SQLElementList):
         o = []
         for f in self.elements:
             o.append(f.field_to_sql())
-        return " and ".join(o)    
+        return " OR ".join(o)    
 
 class Query:
 
@@ -200,7 +225,7 @@ class Query:
     def _query(self):
         sql_arguments = []
         stmt = "" 
-        where_list = self.to_sql_elements(self.where_fields,ExactFilter,self.where_values,WhereClauseElementList)
+        where_list = self.to_sql_elements(self.where_fields,Filter,self.where_values,WhereClauseElementList)
         if len(where_list) == 0:
             from_keyword = "FROM %s" % self.search_instance.index_name 
         else:
@@ -216,7 +241,7 @@ class Query:
                 for arg in sql_element_list.values_to_sql_arguments():
                     if arg is not None:
                         sql_arguments = sql_arguments + arg
-        #print(stmt,sql_arguments)
+        print(stmt,sql_arguments)
         if self.is_aggregate_query:
             return self.search_instance.execute_sql(stmt,*sql_arguments).fetchone()[0]
         else:
@@ -292,7 +317,7 @@ class PocketSearch:
         values=[]
         doc_id = 0
         for kwarg in kwargs:
-            if kwarg not in self.schema.fields:
+            if kwarg.split("__")[0] not in self.schema.fields:
                 raise self.FieldError("Unknown field '%s' - it is not defined in the schema." % kwarg)
         for idx , field in enumerate(self.schema):
             if not(field.name in kwargs) and not(for_search):

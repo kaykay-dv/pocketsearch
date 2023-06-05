@@ -8,6 +8,12 @@ class Movie(schema.Schema):
     title = schema.Field()
     content = schema.Field()
 
+class Page(schema.Schema):
+
+    title = schema.Field()
+    category = schema.Field()
+    content = schema.Field()
+
 class BrokenSchema(schema.Schema):
 
     select = schema.Field()
@@ -34,6 +40,37 @@ class BaseTest(unittest.TestCase):
         self.pocket_search = index.PocketSearch(writeable=True)
         for elem in self.data:
             self.pocket_search.insert(content=elem) 
+
+class OperatorSearch(BaseTest):
+
+    def test_search_prefix(self):
+        # by default, prefix search is not supported:
+        self.assertEqual(self.pocket_search.search(content="fran*").count(),0)
+
+    def test_search_prefix_boolean(self):
+        # by default, AND/OR queries are not supported:
+        self.assertEqual(self.pocket_search.search(content='france AND paris').count(),0)
+        self.assertEqual(self.pocket_search.search(content='france OR paris').count(),0)
+
+    def test_negation(self):
+        # Negation is neither supported
+        self.assertEqual(self.pocket_search.search(content="NOT france").count(),0)
+
+class PhraseSearch(unittest.TestCase):
+
+    def test_search_phrase(self):   
+        pocket_search = index.PocketSearch(writeable=True)
+        pocket_search.insert(content="This is a phrase")
+        pocket_search.insert(content="a phrase this is")
+        self.assertEqual(pocket_search.search(content="This is a phrase").count(),2)
+        self.assertEqual(pocket_search.search(content="this phrase a is").count(),2)
+        self.assertEqual(pocket_search.search(content='"this is a phrase"').count(),1)
+
+    def test_multiple_phrases(self):
+        pocket_search = index.PocketSearch(writeable=True)
+        pocket_search.insert(content="This is a phrase")        
+        self.assertEqual(pocket_search.search(content='"this is" "a phrase"').count(),1)
+        self.assertEqual(pocket_search.search(content='"this is" "phrase a"').count(),0)
 
 class IndexTest(BaseTest):
 
@@ -125,7 +162,7 @@ class CharacterTest(unittest.TestCase):
             "bleɪd",
             "(bracket)",
             "(bracket )",            
-                "(bracket]",    
+            "(bracket]",    
             "U.S.A."   ,
             "ˌrʌnɚ"  ,
             "'x'"   
@@ -162,6 +199,27 @@ class CharacterTest(unittest.TestCase):
 
     def test_quoting(self):
         self.assertEqual(self.pocket_search.search(content="x").count(),1)
+
+class MultipleFieldRankingtest(unittest.TestCase):
+
+    def setUp(self):
+        self.pocket_search = index.PocketSearch(schema=Page,writeable=True)
+        self.data = [
+            ("A","A","C B C A"),
+            ("B","B","C C A A"),
+            ("C","A","A A C C"),
+        ]
+        self.pocket_search = index.PocketSearch(schema=Page,writeable=True)
+        for title , category , content in self.data:
+            self.pocket_search.insert(title=title,category=category,content=content)        
+
+    def test_rank(self):
+        self.assertEqual(self.pocket_search.search(content="A",title="A",category="A")[0].title,"A")
+        # If we search for C, we would expect the "C" title to appear first
+        self.assertEqual(self.pocket_search.search(content="C",title="C",category="C")[0].title,"A")
+        # Now order the results by title, this should bring "A" first:
+        results = self.pocket_search.search(content="C",title="C",category="C").order_by("title")
+        self.assertEqual(results[0].title,"A")
 
 class MultipleFieldIndexTest(unittest.TestCase):
 
