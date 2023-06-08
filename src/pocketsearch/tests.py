@@ -1,28 +1,52 @@
 import unittest
+import datetime
 
-from pocketsearch import Text, PocketSearch, Schema, Query, Field
+from pocketsearch import Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime
 
 class Movie(Schema):
+    '''
+    A simple movie schema we use for tests.
+    '''
 
     title = Text(index=True)
     text = Text(index=True)
 
 class Page(Schema):
+    '''
+    Page schema to use multi-field searches
+    '''
 
     title = Text(index=True)
     category = Text(index=True)
     text = Text(index=True)
 
 class BrokenSchema(Schema):
+    '''
+    Broken schema definition - select is a reserved keyword.
+    '''
 
     select = Field()
 
+class BrokenSchemaUnderscores(Schema):
+    '''
+    Broken schema definition - Underscores are not allowed
+    '''
+
+    test__123 = Field()
+
 class SchemaTest(unittest.TestCase):
+    '''
+    Tests for schema generation
+    '''
 
     def test_create_schema(self):
         schema = Movie(name="movie")
         for field in ["title","text"]:
             self.assertEqual(field in schema.fields,True)
+
+    def test_use_underscores_in_fields(self):
+        with self.assertRaises(Schema.SchemaError):
+            BrokenSchemaUnderscores(name="broken")        
 
     def test_use_reserved_keywords(self):
         with self.assertRaises(Schema.SchemaError):
@@ -46,13 +70,26 @@ class OperatorSearch(BaseTest):
         # by default, prefix search is not supported:
         self.assertEqual(self.pocket_search.search(text="fran*").count(),0)
 
-    def test_search_prefix_boolean(self):
+    def test_search_prefix_explicit(self):
+        # by default, prefix search is not supported:
+        self.assertEqual(self.pocket_search.search(text__allow_prefix="fran*").count(),1)
+
+    def test_search_and_or_query_default(self):
         # by default, AND/OR queries are not supported:
         self.assertEqual(self.pocket_search.search(text='france AND paris').count(),0)
         self.assertEqual(self.pocket_search.search(text='france OR paris').count(),0)
 
-    def test_negation(self):
-        # Negation is neither supported
+    def test_combined_lookups(self):
+        self.assertEqual(self.pocket_search.search(text__allow_boolean__allow_prefix='france OR engl*').count(),2)        
+
+    def test_search_and_or_query_explicit(self):
+        # Allow AND + OR 
+        self.assertEqual(self.pocket_search.search(text__allow_boolean='france AND paris').count(),1)
+        self.assertEqual(self.pocket_search.search(text__allow_boolean='france OR paris').count(),1)        
+        self.assertEqual(self.pocket_search.search(text__allow_boolean='france OR england OR fence').count(),3)
+
+    def test_negation_default(self):
+        # By default, negation is not supported
         self.assertEqual(self.pocket_search.search(text="NOT france").count(),0)
 
 class PhraseSearch(unittest.TestCase):
@@ -78,6 +115,14 @@ class IndexTest(BaseTest):
         pocket_search.writeable=False # in.memory dbs are writeable by default so we set the flag manually
         with self.assertRaises(pocket_search.IndexError):
             pocket_search.insert(text="21")
+
+    def test_use_insert_update_with_lookups(self):
+        pocket_search = PocketSearch()
+        with self.assertRaises(pocket_search.FieldError):
+            pocket_search.insert(text__allow_boolean="123")
+        pocket_search.insert(text="123")   
+        with self.assertRaises(pocket_search.FieldError):
+            pocket_search.update(rowid=1,text__allow_boolean="The DOG jumped over the fence. Now he is beyond the fence.")         
 
     def test_unknown_field(self):
         pocket_search = PocketSearch(writeable=True)
@@ -184,9 +229,6 @@ class CharacterTest(unittest.TestCase):
     def test_search_special_characters(self):
         self.assertEqual(self.pocket_search.search(text="äö").count(),1)
 
-    #def test_search_ascii(self):
-    #    self.assertEqual(self.pocket_search.search(text="ao").count(),0)
-
     def test_search_special_characters2(self):
         self.assertEqual(self.pocket_search.search(text="bleɪd").count(),1)
 
@@ -277,6 +319,97 @@ class MultipleFieldIndexTest(unittest.TestCase):
 
     def test_combined_field_search(self):
         self.assertEqual(self.pocket_search.search(text="Blade",title="runner").count(),1)
+
+class FieldTypeTests(unittest.TestCase):
+
+    class AllFields(Schema):
+
+        f1 = Int()
+        f2 = Text(index=True)
+        f3 = Blob()
+        f4 = Real()
+        f5 = Datetime()
+        f6 = Date()
+
+    def setUp(self):
+        self.pocket_search=PocketSearch(schema=self.AllFields)
+        self.pocket_search.insert(f1=32,
+                             f2='text',
+                             f3='abc'.encode("utf-8"),
+                             f4=2/3,
+                             f5=datetime.datetime.now(),
+                             f6=datetime.date.today())
+                
+
+    def test_create(self):
+        result = self.pocket_search.search(id=1)
+        self.assertEqual(type(result[0].f6),datetime.date)
+        # search for dates
+
+    def test_search_dates_equals(self):
+        year = datetime.date.today().year
+        month = datetime.date.today().month
+        day = datetime.date.today().day
+        eq = self.assertEqual
+        eq(self.pocket_search.search(f6__year=year).count(),1)
+        eq(self.pocket_search.search(f6__month=month).count(),1)
+        eq(self.pocket_search.search(f6__day=day).count(),1)
+
+    def test_search_dates_range(self):
+        year = datetime.date.today().year
+        month = datetime.date.today().month
+        day = datetime.date.today().day        
+        self.assertEqual(self.pocket_search.search(f6__year__gte=year-1,f6__year__lte=year+1).count(),1)
+
+class StructuredDataTests(unittest.TestCase):
+
+    class Product(Schema):
+
+        price = Int()
+        description = Text(index=True)
+        category = Text() # not part of FT index
+
+    def setUp(self):
+        self.pocket_search=PocketSearch(schema=self.Product)
+        for product, price , category in [
+            ("Apple",3,"Fruit"),
+            ("Orange",4,"Fruit"),
+            ("Peach",5,"Fruit"),
+            ("Banana",6,"Fruit"),
+        ]:
+            self.pocket_search.insert(description=product,price=price,category=category)
+
+    def test_filter_numeric_values_equal(self):
+        self.assertEqual(self.pocket_search.search(price=3).count(),1)
+
+    def test_filter_numeric_values_greater_than(self):
+        self.assertEqual(self.pocket_search.search(price__gt=3).count(),3)
+
+    def test_filter_numeric_values_greater_than_equal(self):
+        self.assertEqual(self.pocket_search.search(price__gte=3).count(),4)
+
+    def test_filter_numeric_values_lesser_than(self):
+        self.assertEqual(self.pocket_search.search(price__lt=3).count(),0)
+
+    def test_filter_numeric_values_lesser_than_equal(self):
+        self.assertEqual(self.pocket_search.search(price__lte=3).count(),1)
+
+    def test_search_category(self):
+        # This will lead to a standard "equal" search not invoking FTS
+        self.assertEqual(self.pocket_search.search(category="Fruit").count(),4)
+
+    def test_search_category_operators(self):
+        # Should work, as sqlite3 allows this:
+        self.assertEqual(self.pocket_search.search(category__lte="Fruit").count(),4)
+
+    def test_filter_combined(self):
+        self.assertEqual(self.pocket_search.search(price__lte=3,description="apple").count(),1)
+
+    def test_price_range(self):
+        self.assertEqual(self.pocket_search.search(price__lt=6,price__gt=4).count(),1)
+
+    def test_filter_combined_and_or(self):
+        self.assertEqual(self.pocket_search.search(price__lte=4,description__allow_boolean="apple OR Orange").count(),2)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,8 +1,16 @@
+'''
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, 
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE 
+COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY, 
+WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR 
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+'''
+
+import sqlite3
 import os
 import time
-import re
-import sqlite3
-import time
+import enum
 
 class Timer:
     '''
@@ -56,6 +64,9 @@ class Field:
     def constraints(self):
         return ""
 
+    def fts_enabled(self):
+        return False
+
     def get_full_qualified_name(self):
         if self.index:
             return "%s_fts.%s" % (self.schema.name,self.name)
@@ -73,6 +84,9 @@ class Field:
         else:
             _data_type=self.data_type
         return "%s %s %s" % (name,_data_type,self.constraints())
+
+    #def __repr__(self):
+    #    return "<%:%s>" % (self.name,self.self.__class__.__name__)
 
 class Int(Field):
 
@@ -93,6 +107,29 @@ class IdField(Int):
 class Text(Field):
 
     data_type = "TEXT"
+
+    def fts_enabled(self):
+        return self.index
+
+class Real(Field):
+
+    data_type = "REAL"
+
+class Numeric(Field):
+
+    data_type = "NUMERIC"
+
+class Blob(Field):
+    
+    data_type = "BLOB"
+
+class Date(Field):
+
+    data_type = "Date"
+
+class Datetime(Field):
+    
+    data_type = "Datetime"
 
 class Schema: 
 
@@ -124,6 +161,8 @@ class Schema:
         for elem in dir(self):
             obj = getattr(self,elem)
             if isinstance(obj,Field):
+                if elem.startswith("_") or "__" in elem:
+                    raise self.SchemaError("Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." % elem)                
                 if elem.upper() in self.RESERVED_KEYWORDS:
                     raise self.SchemaError("'%s' is a reserved name - Please choose another name." % elem)
                 self.fields[elem] = obj
@@ -151,6 +190,9 @@ class DefaultSchema(Schema):
     text = Text(index=True)
 
 class SearchResult:
+    '''
+    
+    '''
 
     def __init__(self):
         self.num_results=0
@@ -178,39 +220,6 @@ class Document:
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f,getattr(self,f)) for f in self.fields])
 
-
-class Filter():
-
-    def escape(self,value):
-        for v in [
-            "AND",
-            "OR",
-            "NOT"
-        ]:
-            # if one of the keywords have been found
-            # we can abort and quote the entire value
-            if value.find(v) != -1:
-                return value.replace(v,'"%s"' % v)
-        for ch in ["*","-","^","."]:
-            if ch in value:
-                return value.replace(value,'"%s"' % value)
-        return value
-
-    def field_to_sql(self):
-        if "__" in self.field:
-            try:
-                name , lookup = self.field.split("__")
-            except ValueError:
-                raise self.QueryElementError("'%s' is not a valid lookup." % self.field)
-        else:
-            name = self.field
-        return "%s_fts.%s match ?" % (self.search_instance.index_name,name)
-
-    def value_to_arg(self):
-        # Interpret value as given. This 
-        # will ignore any AND OR commands:
-        return ['%s' % self.escape(self.value)]
-
 class SQLQueryComponent:
 
     def __init__(self,sql_query):
@@ -228,6 +237,11 @@ class Select(SQLQueryComponent):
     def to_sql(self):
         if type(self.field) is str:
             return self.field
+        else:
+            if isinstance(self.field,Date):
+                return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(),name=self.field.name)
+            elif isinstance(self.field,Datetime):
+                return "{full_name} as \"{name} [timestamp]\"".format(full_name=self.field.get_full_qualified_name(),name=self.field.name)
         return self.field.get_full_qualified_name()
 
 class Count(SQLQueryComponent):
@@ -247,26 +261,64 @@ class Table(SQLQueryComponent):
     def to_sql(self):
         return self.table_name
 
+LU_EQ = "eq"
+LU_BOOL = "allow_boolean"
+LU_NEG = "allow_negation"
+LU_PREFIX = "allow_prefix"
+LU_GTE = "gte"
+LU_LTE = "lte"
+LU_GT = "gt"
+LU_LT = "lt"
+LU_YEAR = "year"
+LU_MONTH = "month"
+LU_DAY = "day"
+LU_HOUR = "hour"
+LU_MINUTE = "minute"
+
+LOOKUPS = {
+    LU_EQ : [], # valid for all field types
+    LU_BOOL: [Text],
+    LU_NEG: [Text],
+    LU_PREFIX: [Text],
+    LU_GTE: [Int],
+    LU_LTE: [Int],
+    LU_GT: [Int],
+    LU_LT: [Int],
+    LU_YEAR : [Date,Datetime],
+    LU_MONTH : [Date,Datetime],
+    LU_DAY : [Date,Datetime],
+    LU_HOUR : [Datetime],
+    LU_MINUTE : [Datetime],
+
+}
+
 class Filter(SQLQueryComponent):
 
-    def __init__(self,field,value,sql_query):
+    def __init__(self,field,
+                      value,
+                      sql_query,
+                      lookup):
         super().__init__(sql_query) 
         self.field = field    
         self.value = value
+        self.keywords = []
+        self.operators = ["-",".","^"]
+        if not(LU_BOOL in lookup.names):
+            self.keywords = self.keywords + ["AND","OR"]
+        if not(LU_NEG in lookup.names):
+            self.keywords.append("NOT")
+        if not(LU_PREFIX in lookup.names):
+            self.operators.append("*")
 
 class MatchFilter(Filter):
 
     def escape(self,value):
-        for v in [
-            "AND",
-            "OR",
-            "NOT"
-        ]:
+        for v in self.keywords:
             # if one of the keywords have been found
             # we can abort and quote the entire value
             if value.find(v) != -1:
                 return value.replace(v,'"%s"' % v)
-        for ch in ["*","-","^","."]:
+        for ch in self.operators:
             if ch in value:
                 return value.replace(value,'"%s"' % value)
         return value    
@@ -275,11 +327,53 @@ class MatchFilter(Filter):
         self.sql_query.add_value(self.escape(self.value))
         return "%s MATCH ?" % self.field.get_full_qualified_name()
 
-class ExactFilter(Filter):
-    
+class BooleanFilter(SQLQueryComponent):
+
+    def __init__(self,field,
+                      value,
+                      sql_query,
+                      lookup):
+        super().__init__(sql_query) 
+        if LU_GTE in lookup.names:
+            self.op = ">="
+        elif LU_GT in lookup.names:
+            self.op = ">"
+        elif LU_LTE in lookup.names:
+            self.op = "<="
+        elif LU_LT in lookup.names:
+            self.op = "<"
+        else:
+            self.op = "="
+        self.field = field    
+        self.value = value          
+
     def to_sql(self):
         self.sql_query.add_value(self.value)
-        return "%s = ?" % self.field.get_full_qualified_name()
+        return "%s %s ?" % (self.field.get_full_qualified_name(), self.op)
+
+class DateFilter(BooleanFilter):
+
+    def __init__(self,field,
+                      value,
+                      sql_query,
+                      lookup):
+        super().__init__(field,value,sql_query,lookup)
+        if LU_YEAR in lookup.names:
+            self.date_selector = "%Y"
+        elif LU_MONTH in lookup.names:
+            self.date_selector = "%m"
+        elif LU_DAY in lookup.names:
+            self.date_selector = "%d"
+        else:
+            self.date_selector = None
+
+    def to_sql(self):
+        if self.date_selector is None:
+            return super().to_sql()
+        self.sql_query.add_value("%s" % self.value)
+        return "CAST(strftime('%s',%s) AS INTEGER) %s ?" % (self.date_selector,
+                                                            self.field.get_full_qualified_name(),
+                                                            self.op) 
 
 class OrderBy(SQLQueryComponent):
 
@@ -289,7 +383,7 @@ class OrderBy(SQLQueryComponent):
         self.sort_dir = sort_dir
 
     def to_sql(self):
-        if type(self.field) is str:
+        if isinstance(self.field,str):
             if self.field.startswith("+"):
                 d = "ASC"
             elif self.field.startswith("-"):
@@ -298,14 +392,13 @@ class OrderBy(SQLQueryComponent):
                 d = "ASC"     
             #self.sql_query.add_value(self.field[1:])  
             return "%s %s" % (self.field[1:],d)
-        else:            
-            if self.sort_dir=="+":
-                d = "ASC"
-            elif self.sort_dir=="-":
-                d = "DESC"
-            else:
-                d = "ASC"       
-            #self.sql_query.add_value(self.field.get_full_qualified_name())
+        if self.sort_dir=="+":
+            d = "ASC"
+        elif self.sort_dir=="-":
+            d = "DESC"
+        else:
+            d = "ASC"       
+        #self.sql_query.add_value(self.field.get_full_qualified_name())
         return "%s %s" % (self.field.get_full_qualified_name(),d)
 
 class LimitAndOffset(SQLQueryComponent):
@@ -340,6 +433,10 @@ class Join(SQLQueryComponent):
                                                                               right_field=self.right_field)
 
 class SQLQuery:
+    '''
+    Helper class that constructs the SQLQuery from 
+    individual SQLQueryComponent objects
+    '''
 
     def __init__(self,search_instance):
         self.search_instance = search_instance
@@ -352,20 +449,38 @@ class SQLQuery:
         self.query_args=[]
 
     def count(self):
+        '''
+        Add a count(*) expression to the current query
+        '''
         self.v_select.clear()
         self.v_select.append(Count(sql_query=self))        
 
     def select(self,field,clear=False):
+        '''
+        Adds field to the selected fields clause in the statement. 
+        If clear is set to True, any items that have been added 
+        prior will be cleared.
+        '''        
         if clear: 
             self.v_select.clear()
         self.v_select.append(Select(field=field,sql_query=self))
 
     def table(self,table_name,clear=False):
-        if clear: 
-            self.v_from_tables.clear()        
+        '''
+        Adds a reference to the from clause in the SQL statement. 
+        If clear is set to True, any items that have been added 
+        prior will be cleared.
+        '''                
+        if clear:
+            self.v_from_tables.clear()
         self.v_from_tables.append(Table(table_name=table_name,sql_query=self))
 
     def join(self,table_left,table_right,left_field,right_field,clear=False):
+        '''
+        Adds a join in the SQL statement. 
+        If clear is set to True, any items that have been added 
+        prior will be cleared.
+        ''' 
         if clear: 
             self.v_joins.clear()                
         self.v_joins.append(Join(table_left=table_left,
@@ -374,23 +489,43 @@ class SQLQuery:
                                  right_field=right_field,
                                  sql_query=self))
 
-    def where(self,field,value,clear=False):
+    def where(self,field,lookup,clear=False):        
         if clear: 
-            self.v_where.clear()                        
-        self.v_where.append(MatchFilter(field=field,value=value,sql_query=self))
+            self.v_where.clear()
+        if field.fts_enabled():
+            filter_clazz = MatchFilter
+        else:
+            filter_clazz = BooleanFilter
+        if field.__class__ is Date:
+            filter_clazz = DateFilter
+        self.v_where.append(filter_clazz(field=field,value=lookup.value,lookup=lookup, sql_query=self))    
 
     def order_by(self,field,sort_dir=None,clear=False):
+        '''
+        Adds an order_by clause to the current statement. sort_dir can either be "+" (ascending)
+        or "-" (descending)
+        '''        
         if clear: 
             self.v_order_by.clear()                                
         self.v_order_by.append(OrderBy(field=field,sort_dir=sort_dir,sql_query=self))
 
     def limit_and_offset(self,limit,offset):
+        '''
+        Set limit and offset of query
+        '''
         self.v_limit_and_offset = LimitAndOffset(limit=limit,offset=offset,sql_query=self)
             
     def add_value(self,value):
+        '''
+        Adds a value to the SQL string. This value will be later added to 
+        the arguments list of the execute_sql method.
+        '''
         self.query_args.append(value)
 
     def to_sql(self):
+        '''
+        Render statement as SQL string
+        '''
         self.query_args=[]
         stmt=["SELECT"]
         stmt.append(",".join([s.to_sql() for s in self.v_select]))
@@ -409,16 +544,22 @@ class SQLQuery:
 
 class Query:
 
-    class QueryError(Exception):pass
+    class QueryError(Exception):
+        '''
+        Raised if the query could not be correctly interpreted.
+        '''
+        pass
 
-    def __init__(self,search_instance,fields,values):
+    def __init__(self,search_instance,arguments):
         self.search_instance=search_instance
+        self.arguments=arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         for field in self.search_instance.schema.get_fields():
             self.sql_query.select(field=field)
-        for idx, field in enumerate(fields):
-            self.sql_query.select(field=field)
-            self.sql_query.where(field=field,value=values[idx]) 
+        for field_name , argument in arguments.items():
+            #self.sql_query.select(field=argument.field)
+            for lookup in argument.lookups:
+                self.sql_query.where(field=argument.field,lookup=lookup) 
         self.sql_query.select("rank")
         self.sql_query.table(table_name=self.search_instance.schema.name) 
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name) 
@@ -426,16 +567,6 @@ class Query:
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10,offset=0)
         self.is_aggregate_query = False
-
-    def get_lookup(self,field):
-        try:
-            lookup = field.name.split("__")[1]
-            # To be done
-            raise ValueError("Not supported yet.")
-        except IndexError:
-            if field.index:
-                return MatchFilter
-            return ExactFilter
 
     def count(self):
         self.is_aggregate_query=True
@@ -503,6 +634,18 @@ class PocketSearch:
     class FieldError(Exception):pass
     class DocumentDoesNotExist(Exception):pass
 
+    class Argument:
+
+        def __init__(self,field,lookups):
+            self.field = field
+            self.lookups = lookups
+
+    class Lookup:
+
+        def __init__(self,names,value):
+            self.names = names
+            self.value = value
+
     def __init__(self,db_name=None,
                       index_name="documents",
                       schema=DefaultSchema,
@@ -510,9 +653,9 @@ class PocketSearch:
         self.db_name = db_name
         self.schema = schema(index_name)
         if db_name is None:
-            self.connection = sqlite3.connect(":memory:")
+            self.connection = sqlite3.connect(":memory:",detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         else:
-            self.connection = sqlite3.connect(self.db_name) 
+            self.connection = sqlite3.connect(self.db_name,detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES) 
         self.connection.row_factory = sqlite3.Row                       
         self.cursor = self.connection.cursor()
         self.db_name = db_name
@@ -575,28 +718,42 @@ class PocketSearch:
         self.cursor.execute(self._format_sql(index_name,fields,sql_trigger_update))
 
     def get_arguments(self,kwargs,for_search=True):
-        fields=[]
-        values=[]
+        '''
+        Extracts field names and lookups from the keywords arguments and returns 
+        a dictionary of argument objects.
+        '''
+        referenced_fields = {} 
         for kwarg in kwargs:
-            if kwarg.split("__")[0] not in self.schema.fields:
-                raise self.FieldError("Unknown field '%s' - it is not defined in the schema." % kwarg)
-        for idx , field in enumerate(self.schema):
-            if field.name not in ["id","rank"] and not(field.name in kwargs) and not(for_search):
-                if field.name in self.schema.fields_with_default:
-                    fields.append(field)
-                    values.append(self.schema.fields_with_default[field.name].default())
-                else:
-                    raise self.FieldError("Missing field '%s' in keyword arguments." % field.name)
-            if field.name in kwargs:
-                fields.append(field)
-                values.append(kwargs[field.name])
-        return fields,values
+            comp = kwarg.split("__")
+            if comp[0] not in referenced_fields:
+                referenced_fields[comp[0]] = []
+            if len(comp) > 1:
+                if not(for_search):
+                    raise self.FieldError("Lookups are not allowed in the context of inserts and updates")  
+                referenced_fields[comp[0]].append(self.Lookup(comp[1:],kwargs[kwarg]))
+            else:
+                referenced_fields[comp[0]].append(self.Lookup(["eq"],kwargs[kwarg]))
+        for f , lookups in referenced_fields.items():
+            if f not in self.schema.fields:
+                raise self.FieldError("Unknown field '%s' - it is not defined in the schema." % f)            
+            for lookup in lookups:
+                for name in lookup.names:
+                    if not(name) in LOOKUPS:
+                        raise self.FieldError("Unknown lookup: '%s' in %s" % (lookup,f))
+        arguments={}
+        for field in self.schema:
+            if field.name not in referenced_fields and not(for_search) and field.name not in ["id","rank"]:
+                raise self.FieldError("Missing field '%s' in keyword arguments." % field.name)
+            if field.name in referenced_fields:
+                arguments[field.name]=self.Argument(field,referenced_fields[field.name])
+        return arguments
 
 
     def insert(self,*args,**kwargs):
         self.assure_writeable()
-        fields, values = self.get_arguments(kwargs,for_search=False)
-        joined_fields = ",".join([f.name for f in fields])
+        arguments = self.get_arguments(kwargs,for_search=False)
+        joined_fields = ",".join([f for f in arguments])
+        values = [argument.lookups[0].value for argument in arguments.values()]
         placeholder_values = "?" * len(values)
         sql="insert into %s (%s) values (%s)" % (self.schema.name,
                                                  joined_fields,
@@ -618,12 +775,13 @@ class PocketSearch:
     def update(self,**kwargs):
         self.assure_writeable()
         docid = kwargs.pop("rowid")
-        fields, values = self.get_arguments(kwargs,for_search=False)
+        arguments = self.get_arguments(kwargs,for_search=False)
+        values = [argument.lookups[0].value for argument in arguments.values()] + [docid]
         stmt=[]
-        for idx,f in enumerate(fields):
-            stmt.append("%s='%s'" % (f.name,values[idx]))
+        for f in arguments:
+            stmt.append("%s=?" % f)
         sql="update %s set %s where id=?" % (self.schema.name,",".join(stmt))
-        self.cursor.execute(sql,(docid,))
+        self.cursor.execute(sql,values)
         self.connection.commit()
 
     def delete(self,rowid):
@@ -633,22 +791,22 @@ class PocketSearch:
         self.connection.commit()        
 
     def search(self,**kwargs):
-        fields, values = self.get_arguments(kwargs)
-        return Query(self,fields,values)
+        arguments = self.get_arguments(kwargs)
+        return Query(self,arguments)
 
 
 if __name__ == "__main__":
-    p = PocketSearch(db_name="eu.db",writeable=True)  
-    #for item in p.search(content="merkel"):
-    #    print(item.content[0:50])
-    '''
-    t = timer.Timer() 
-    for root, dirs, files in os.walk("/Users/karlkreiner/Desktop/code/git/eu_parliament/DCEP/"):
-            for file in files:
-                if file.endswith(".txt"):
-                    file_path = os.path.join(root, file)
-                    with open(file_path, 'r') as file:
-                        p.insert(content=file.read())
-                        t.snapshot()
-    '''
+    p = PocketSearch(db_name="eu.db")  
+    for item in p.search(text="merkel"):
+        print(item.text[0:50])
+
+    #t = Timer() 
+    #for root, dirs, files in os.walk("/Users/karlkreiner/Desktop/code/git/eu_parliament/DCEP/"):
+    #        for file in files:
+    #            if file.endswith(".txt"):
+    #                file_path = os.path.join(root, file)
+    #                with open(file_path, 'r') as file:
+    #                    p.insert(text=file.read())
+    #                    t.snapshot()
+    #t.done()
                         
