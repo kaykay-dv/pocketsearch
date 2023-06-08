@@ -23,7 +23,7 @@ class Timer:
         self.precision = precision
         self.total_time = 0
         self.laps = []
-        self.snapshots = 0 
+        self.snapshots = 0
 
     def lap(self,name):
         '''
@@ -109,8 +109,8 @@ class Field(abc.ABC):
         '''
         try:
             self.data_type
-        except AttributeError:
-            raise AttributeError("class %s (field=%s) has not attribute data_type" % (self.__class__.__name__,self.name))
+        except AttributeError as exc:
+            raise AttributeError("class %s (field=%s) has not attribute data_type" % (self.__class__.__name__,self.name)) from exc
         name = self.schema.reverse_lookup[self]
         if index_table:
             _data_type=""
@@ -118,8 +118,6 @@ class Field(abc.ABC):
             _data_type=self.data_type
         return "%s %s %s" % (name,_data_type,self.constraints())
 
-    #def __repr__(self):
-    #    return "<%:%s>" % (self.name,self.self.__class__.__name__)
 
 class Int(Field):
     '''
@@ -729,7 +727,7 @@ class Query:
         '''
         Add order by clauses. To indicate ascending or descending order,
         arguments should start with either "+" or ".".
-        '''        
+        '''
         for a in args:
             if a.startswith("+") or a.startswith("-"):
                 field = self.search_instance.schema.get_field(a[1:],raise_exception=True)
@@ -793,15 +791,15 @@ class Query:
             try:
                 index_start=int(index.start)
                 index_stop=int(index.stop)
-            except Exception:
-                raise self.QueryError("Slicing arguments must be positive integers and not None.")
+            except Exception as exc:
+                raise self.QueryError("Slicing arguments must be positive integers and not None.") from exc
             self.sql_query.limit_and_offset(limit=index_stop,offset=index_start)
             return self._query()
         else:
             try:
                 self.sql_query.limit_and_offset(limit=1,offset=int(index))
-            except Exception:
-                raise self.QueryError("Index arguments must be positive integers and not None.")
+            except Exception as exc:
+                raise self.QueryError("Index arguments must be positive integers and not None.") from exc
         return self._query()[0]
 
     def __iter__(self):
@@ -857,7 +855,7 @@ class PocketSearch:
         if db_name is None:
             self.connection = sqlite3.connect(":memory:",detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         else:
-            self.connection = sqlite3.connect(self.db_name,detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES) 
+            self.connection = sqlite3.connect(self.db_name,detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         self.connection.row_factory = sqlite3.Row                       
         self.cursor = self.connection.cursor()
         self.db_name = db_name
@@ -872,7 +870,7 @@ class PocketSearch:
         Tests, if the index is writable.
         '''
         if not(self.writeable):
-            raise self.IndexError("Index '%s' has been opened in read-only mode. Cannot write changes to index." % self.schema.name)
+            raise self.IndexError("Index '{schema_name}' has been opened in read-only mode. Cannot write changes to index.".format(schema_name=self.schema.name) )
 
     def execute_sql(self,sql,*args):
         '''
