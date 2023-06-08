@@ -55,13 +55,16 @@ class Field:
 
     hidden = False
 
-    def __init__(self,name=None,schema=None,default=None,index=False):
+    def __init__(self,name=None,schema=None,default=None,index=False,is_id_field=False):
         self.schema = schema
         self.name = name
         self.default = default
         self.index=index
+        self.is_id_field=is_id_field
 
     def constraints(self):
+        if self.is_id_field:
+            return " UNIQUE "
         return ""
 
     def fts_enabled(self):
@@ -136,6 +139,20 @@ class Schema:
     id = IdField()
     rank = Rank()
 
+    class Meta:
+        '''
+        Additional options for setting up FTS5
+        See https://www.sqlite.org/fts5.html for more information.
+        If a value is set to None, we leave it up to sqlite to 
+        set proper defaults.
+        '''
+        sqlite_tokenize = "unicode61"
+        sqlite_remove_diacritics = None
+        sqlite_categories = None
+        sqlite_tokenchars = None
+        sqlite_separators = None
+
+
     RESERVED_KEYWORDS = [
         'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
         'BEFORE', 'BEGIN', 'BETWEEN', 'BY', 'CASCADE', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN', 'COMMIT',
@@ -154,10 +171,12 @@ class Schema:
     class SchemaError(Exception):pass
 
     def __init__(self,name):
+        self._meta = self.Meta()
         self.name=name
         self.fields={}
         self.fields_with_default={}
         self.reverse_lookup={}
+        self.id_field = None
         for elem in dir(self):
             obj = getattr(self,elem)
             if isinstance(obj,Field):
@@ -169,6 +188,11 @@ class Schema:
                 self.fields[elem].schema = self
                 self.fields[elem].name = elem
                 self.reverse_lookup[obj]=elem
+                if obj.is_id_field:
+                    if self.id_field is not None:
+                        raise self.SchemaError("You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
+                    self.id_field = obj.name
+
         for field in self:
             if field.default is not None:
                 self.fields_with_default[field.name]=field
@@ -191,12 +215,9 @@ class DefaultSchema(Schema):
 
 class SearchResult:
     '''
-    
+    A wrapper over a list holding search results
     '''
-
     def __init__(self):
-        self.num_results=0
-        self.query_time=None
         self.results=[]
 
     def __getitem__(self,index):
@@ -209,6 +230,7 @@ class SearchResult:
         self.results.append(obj)
         return self
     
+
     def __iter__(self):
         return iter(self.results)
 
@@ -537,9 +559,11 @@ class SQLQuery:
             if self.v_where:
                 stmt.append("AND")
                 stmt.append(" AND ".join([w.to_sql() for w in self.v_where]))
-        stmt.append("ORDER BY")
+        if len(self.v_order_by)>0:
+            stmt.append("ORDER BY")
         stmt.append(",".join([o.to_sql() for o in self.v_order_by]))
-        stmt.append(self.v_limit_and_offset.to_sql())
+        if self.v_limit_and_offset is not None:
+            stmt.append(self.v_limit_and_offset.to_sql())
         return " ".join(stmt) , self.query_args
 
 class Query:
@@ -554,6 +578,7 @@ class Query:
         self.search_instance=search_instance
         self.arguments=arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
+        self.unions = []
         for field in self.search_instance.schema.get_fields():
             self.sql_query.select(field=field)
         for field_name , argument in arguments.items():
@@ -571,6 +596,8 @@ class Query:
     def count(self):
         self.is_aggregate_query=True
         self.sql_query.count()
+        for query in self.unions:
+            query.sql_query.count()
         return self._query()
 
     def order_by(self,*args):
@@ -582,6 +609,16 @@ class Query:
                 field = self.search_instance.schema.get_field(a,raise_exception=True)
                 sort_dir = "+"
             self.sql_query.order_by(field,sort_dir,clear=True)
+        return self
+
+    def __or__(self,obj):
+        if not(isinstance(obj,Query)):
+            raise ValueError("Only instances of class Query can be used with the OR operator.")        
+        obj.sql_query.v_order_by = self.sql_query.v_order_by
+        obj.sql_query.v_limit_and_offset = self.sql_query.v_limit_and_offset
+        self.sql_query.v_order_by.clear()
+        self.sql_query.v_limit_and_offset = None
+        self.unions.append(obj)
         return self
 
     def values(self,*args):
@@ -602,11 +639,16 @@ class Query:
 
     def _query(self):
         stmt , query_args = self.sql_query.to_sql()
-        print(stmt,query_args)
+        for query in self.unions:
+            u_stmt, u_ar = query.sql_query.to_sql()
+            stmt += " UNION ALL " + u_stmt
+            query_args = query_args + u_ar
         if self.is_aggregate_query:
-            return self.search_instance.execute_sql(stmt,*query_args).fetchone()[0]
-        else:
-            return self._build_results(self.search_instance.execute_sql(stmt,*query_args))            
+            count=0
+            for sub_count in self.search_instance.execute_sql(stmt,*query_args):
+                count=count+sub_count["COUNT(*)"]
+            return count
+        return self._build_results(self.search_instance.execute_sql(stmt,*query_args))        
 
 
     def __getitem__(self, index):
@@ -633,6 +675,7 @@ class PocketSearch:
     class IndexError(Exception):pass
     class FieldError(Exception):pass
     class DocumentDoesNotExist(Exception):pass
+    class DatabaseError(Exception):pass
 
     class Argument:
 
@@ -675,18 +718,31 @@ class PocketSearch:
     def _format_sql(self,index_name,fields,sql):
         return sql.format(
             index_name=index_name,
-            cols=", ".join([field.to_sql(index_table=True) for field in fields if field.name!="id"]),
-            new_cols=", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.name!="id"]),
-            old_cols=", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.name!="id"]),
+            cols=", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
+            new_cols=", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
+            old_cols=", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
         )          
+
+    def _create_additional_options(self):
+        options=[]
+        m=self.schema._meta
+        for option in dir(m):
+            if option.startswith("sqlite") and getattr(m,option) is not None:
+                options.append("%s=\"%s\"" % (option.split("sqlite_")[1:][0], getattr(m,option)))
+        if len(options)==0:
+            return ""
+        return "," + ",".join(options)
 
     def _create_table(self,index_name):
         fields=[]
         index_fields=[]
+        default_index_fields = [] # non-FTS index fields
         for field in self.schema:
             if (not(field.hidden)):
-                if field.index:
+                if field.index and field.fts_enabled():
                     index_fields.append(field)
+                elif field.index and not(field.fts_enabled()):
+                    default_index_fields.append(field)
                 fields.append(field)
         if len(index_fields)==0:
             raise IndexError("Schema does not have a single indexable field.")
@@ -694,8 +750,8 @@ class PocketSearch:
         CREATE TABLE %s(%s)
         ''' % (index_name,", ".join([field.to_sql() for field in fields]))
         sql_virtual_table='''
-        CREATE VIRTUAL TABLE %s_fts USING fts5(%s, content='%s', content_rowid='id');
-        ''' % (index_name,", ".join([field.to_sql(index_table=True) for field in fields if field.name!="id"]),index_name)
+        CREATE VIRTUAL TABLE %s_fts USING fts5(%s, content='%s', content_rowid='id' %s);
+        ''' % (index_name,", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),index_name,self._create_additional_options())
         # Trigger definitions:
         sql_trigger_insert='''
         CREATE TRIGGER {index_name}_ai AFTER INSERT ON {index_name} BEGIN
@@ -716,6 +772,9 @@ class PocketSearch:
         self.cursor.execute(self._format_sql(index_name,fields,sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name,fields,sql_trigger_delete))
         self.cursor.execute(self._format_sql(index_name,fields,sql_trigger_update))
+        # create standard indices
+        for field in default_index_fields:
+            self.cursor.execute("CREATE INDEX idx_std_{index_name}_%s ON {index_name} ({field});".format(index_name=index_name,field=field))        
 
     def get_arguments(self,kwargs,for_search=True):
         '''
@@ -748,6 +807,22 @@ class PocketSearch:
                 arguments[field.name]=self.Argument(field,referenced_fields[field.name])
         return arguments
 
+    def insert_or_update(self,*args,**kwargs):
+        self.assure_writeable()
+        if self.schema.id_field is None:
+            raise self.DatabaseError("No IDFIeld has been defined in the schema - cannot perform insert_or_update.")
+        arguments = self.get_arguments(kwargs,for_search=False)
+        joined_fields = ",".join([f for f in arguments])
+        values = [argument.lookups[0].value for argument in arguments.values()]
+        placeholder_values = "?" * len(values)  
+        sql="insert or replace into %s (%s) values (%s)" % (self.schema.name,
+                                                 joined_fields,
+                                                 ",".join(placeholder_values))          
+        try:
+            self.cursor.execute(sql,values)
+        except Exception as sql_error:
+            raise self.DatabaseError(sql_error)
+        self.connection.commit()            
 
     def insert(self,*args,**kwargs):
         self.assure_writeable()
@@ -758,7 +833,10 @@ class PocketSearch:
         sql="insert into %s (%s) values (%s)" % (self.schema.name,
                                                  joined_fields,
                                                  ",".join(placeholder_values))
-        self.cursor.execute(sql,values)
+        try:
+            self.cursor.execute(sql,values)
+        except Exception as sql_error:
+            raise self.DatabaseError(sql_error)
         self.connection.commit()
 
     def get(self,rowid):

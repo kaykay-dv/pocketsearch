@@ -1,7 +1,7 @@
 import unittest
 import datetime
 
-from pocketsearch import Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime
+from pocketsearch import Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
 
 class Movie(Schema):
     '''
@@ -53,6 +53,9 @@ class SchemaTest(unittest.TestCase):
             BrokenSchema(name="broken")
 
 class BaseTest(unittest.TestCase):
+    '''
+    Base test class that creates some test data
+    '''
 
     def setUp(self):
         self.data = [
@@ -65,6 +68,9 @@ class BaseTest(unittest.TestCase):
             self.pocket_search.insert(text=elem) 
 
 class OperatorSearch(BaseTest):
+    '''
+    Tests covering the usage of boolean operators and prefix search
+    '''  
 
     def test_search_prefix(self):
         # by default, prefix search is not supported:
@@ -176,11 +182,52 @@ class IndexTest(BaseTest):
         for idx,item in enumerate(self.pocket_search.search(text="is")):
             item.text # just check, if it possible to call the attribute
 
+    def test_combine_search_results(self):
+        q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
+        self.assertEqual(q1.count(),2)
+
     def test_order_by(self):
         r = self.pocket_search.search(text="is").values("id","rank","text").order_by("-text")
         self.assertEqual(r[0].text,self.data[0])
         self.assertEqual(r[1].text,self.data[2])
         self.assertEqual(r[2].text,self.data[1])
+
+class IDFieldTest(unittest.TestCase):
+
+    class IdSchema(Schema):
+
+        text = Text(index=True)
+        file_name = Text(is_id_field=True)
+
+    class IdSchema2IdFields(Schema):
+
+        text = Text(index=True,is_id_field=True)
+        file_name = Text(is_id_field=True)
+
+    def test_add_id_field(self):
+        pocket_search = PocketSearch(schema=self.IdSchema)
+        self.assertEqual(pocket_search.schema.id_field,"file_name") 
+
+    def test_add_data(self):
+        pocket_search = PocketSearch(schema=self.IdSchema)
+        pocket_search.insert(text="A",file_name="a.txt")
+        with self.assertRaises(pocket_search.DatabaseError):
+            pocket_search.insert(text="B",file_name="a.txt")
+
+    def test_insert_or_update_no_id_field(self):
+        pocket_search = PocketSearch()
+        with self.assertRaises(pocket_search.DatabaseError):
+            pocket_search.insert_or_update(text="123")
+
+    def test_insert_or_update(self):
+        pocket_search = PocketSearch(schema=self.IdSchema)
+        pocket_search.insert(text="A",file_name="a.txt")
+        pocket_search.insert_or_update(text="B",file_name="a.txt")
+        self.assertEqual(pocket_search.search(text="B").count(),1)        
+
+    def test_add_2_id_fields(self):
+        with self.assertRaises(Schema.SchemaError):
+            PocketSearch(schema=self.IdSchema2IdFields)
 
 class IndexUpdateTests(BaseTest):
 
