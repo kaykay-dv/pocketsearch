@@ -185,6 +185,8 @@ class IndexTest(BaseTest):
     def test_combine_search_results(self):
         q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
         self.assertEqual(q1.count(),2)
+        print(q1[0])
+        print(q1[1])
 
     def test_order_by(self):
         r = self.pocket_search.search(text="is").values("id","rank","text").order_by("-text")

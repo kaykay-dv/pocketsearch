@@ -26,11 +26,19 @@ class Timer:
         self.snapshots = 0 
 
     def lap(self,name):
+        '''
+        Add a lap to the timer. A lap has a name and is automatically 
+        associated with the the current time. 
+        '''
         if len(self.laps) > 0:
             self.total_time+=time.time()-self.laps[-1:][0][1]        
         self.laps.append((name,time.time()))
 
     def snapshot(self,more_info=""):
+        '''
+        Prints out the current iteration and statistics on time consumed. 
+        more_info maybe used on what is actually done.  
+        '''
         stop = time.time()
         self.snapshots=self.snapshots+1
         its = round(1/((stop-self.start)/self.snapshots),self.precision)
@@ -38,6 +46,9 @@ class Timer:
         print(out,end="\r",flush=True)
 
     def done(self):
+        '''
+        Prints a newline on console.
+        '''
         print()
 
     def __str__(self):
@@ -52,6 +63,9 @@ class Timer:
 
 
 class Field: 
+    '''
+    Each schema has a number of fields. The field class defines the behavior of a field
+    '''
 
     hidden = False
 
@@ -63,20 +77,35 @@ class Field:
         self.is_id_field=is_id_field
 
     def constraints(self):
+        '''
+        Returns any constraints as string associated with the field.
+        '''
         if self.is_id_field:
             return " UNIQUE "
         return ""
 
     def fts_enabled(self):
+        '''
+        Returns, if the field is available for full-text-search.
+        '''
         return False
 
     def get_full_qualified_name(self):
+        '''
+        Return the full qualified name including its table for the given field.
+        '''        
         if self.index:
-            return "%s_fts.%s" % (self.schema.name,self.name)
+            if self.fts_enabled():
+                return "%s_fts.%s" % (self.schema.name,self.name)
+            else:
+                return "%s_.%s" % (self.schema.name,self.name)
         else:
             return "%s.%s" % (self.schema.name,self.name)
 
     def to_sql(self,index_table=False):
+        '''
+        Returns sql representation of field for SQL table generation.
+        '''
         try:
             self.data_type
         except AttributeError:
@@ -92,10 +121,18 @@ class Field:
     #    return "<%:%s>" % (self.name,self.self.__class__.__name__)
 
 class Int(Field):
+    '''
+    Integer field
+    '''
 
     data_type = "INTEGER"
 
 class Rank(Field): 
+    '''
+    Rank field as returned by FTS5 - it is a hidden field, meaning
+    that during index creation it won't be created as actual database
+    field.
+    '''
 
     hidden = True
 
@@ -103,11 +140,17 @@ class Rank(Field):
         return self.name
 
 class IdField(Int):
+    '''
+    Creates a primary key (using autoincrement) integer field in the SQLITE database.
+    '''    
     
     def constraints(self):
         return "PRIMARY KEY AUTOINCREMENT"
 
 class Text(Field):
+    '''
+    Translates to sqlite3 TEXT field.
+    '''        
 
     data_type = "TEXT"
 
@@ -115,26 +158,43 @@ class Text(Field):
         return self.index
 
 class Real(Field):
+    '''
+    Translates to sqlite3 REAL field.
+    '''     
 
     data_type = "REAL"
 
 class Numeric(Field):
+    '''
+    Translates to sqlite3 NUMERIC field. 
+    '''
 
     data_type = "NUMERIC"
 
 class Blob(Field):
-    
+
+    '''
+    Translates to sqlite3 BLOB field. 
+    '''
     data_type = "BLOB"
 
 class Date(Field):
+    '''
+    Translates to sqlite3 DATE field. 
+    '''
 
     data_type = "Date"
 
 class Datetime(Field):
-    
+    '''
+    Translates to sqlite3 Datetime field. 
+    '''
     data_type = "Datetime"
 
-class Schema: 
+class Schema:
+    '''
+    A schema defines what fields can be searched in the search index.
+    '''
 
     id = IdField()
     rank = Rank()
@@ -168,7 +228,10 @@ class Schema:
         'WHERE', 'WITH', 'WITHOUT' 
     ]
 
-    class SchemaError(Exception):pass
+    class SchemaError(Exception):
+        '''
+        Thrown, if the schema cannot be generated.
+        '''
 
     def __init__(self,name):
         self._meta = self.Meta()
@@ -198,18 +261,28 @@ class Schema:
                 self.fields_with_default[field.name]=field
 
     def get_field(self,field_name,raise_exception=False):
+        '''
+        Returns field object for the given field name. If raise_exception is set to True,
+        an exception is raised if the field is not defined in the index.
+        '''
         if raise_exception:
             if not field_name in self.fields:
                 raise self.SchemaError("'%s' is not defined in this schema '%s'" % (field_name,self.__class__.__name__))
         return self.fields.get(field_name)
 
     def get_fields(self):
+        '''
+        Returns all field objects defined in the schema.
+        '''
         return list(self.fields.values())
 
     def __iter__(self):
         return iter(self.fields.values())
 
 class DefaultSchema(Schema):
+    '''
+    Default schema, if none is explicitly provided in the PocketSearch constructor.
+    '''
 
     text = Text(index=True)
 
@@ -235,6 +308,9 @@ class SearchResult:
         return iter(self.results)
 
 class Document:
+    '''
+    Returned in the search results.
+    '''
 
     def __init__(self,fields):
         self.fields=fields
@@ -581,10 +657,9 @@ class Query:
         self.unions = []
         for field in self.search_instance.schema.get_fields():
             self.sql_query.select(field=field)
-        for field_name , argument in arguments.items():
-            #self.sql_query.select(field=argument.field)
+        for argument in arguments.values():
             for lookup in argument.lookups:
-                self.sql_query.where(field=argument.field,lookup=lookup) 
+                self.sql_query.where(field=argument.field,lookup=lookup)
         self.sql_query.select("rank")
         self.sql_query.table(table_name=self.search_instance.schema.name) 
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name) 
@@ -611,18 +686,21 @@ class Query:
             self.sql_query.order_by(field,sort_dir,clear=True)
         return self
 
+    def _clear_union_queries(self):
+        
+        for obj in self.unions:
+            obj.sql_query.v_order_by = self.sql_query.v_order_by
+            obj.sql_query.v_limit_and_offset = self.sql_query.v_limit_and_offset
+            self.sql_query.v_order_by.clear()
+            self.sql_query.v_limit_and_offset = None        
+
     def __or__(self,obj):
         if not(isinstance(obj,Query)):
             raise ValueError("Only instances of class Query can be used with the OR operator.")        
-        obj.sql_query.v_order_by = self.sql_query.v_order_by
-        obj.sql_query.v_limit_and_offset = self.sql_query.v_limit_and_offset
-        self.sql_query.v_order_by.clear()
-        self.sql_query.v_limit_and_offset = None
         self.unions.append(obj)
         return self
 
     def values(self,*args):
-        self.sql_query.v_select.clear()
         for a in args:
             field = self.search_instance.schema.get_field(a,raise_exception=True)            
             self.sql_query.select(field)
@@ -645,6 +723,7 @@ class Query:
             query_args = query_args + u_ar
         if self.is_aggregate_query:
             count=0
+            print(stmt)
             for sub_count in self.search_instance.execute_sql(stmt,*query_args):
                 count=count+sub_count["COUNT(*)"]
             return count
@@ -652,6 +731,7 @@ class Query:
 
 
     def __getitem__(self, index):
+        self._clear_union_queries()
         if isinstance(index, slice):
             try:
                 index_start=int(index.start)
@@ -671,19 +751,44 @@ class Query:
         return iter(self._query())
 
 class PocketSearch:
+    '''
+    Main class to interact with the search index.
+    '''
 
-    class IndexError(Exception):pass
-    class FieldError(Exception):pass
-    class DocumentDoesNotExist(Exception):pass
-    class DatabaseError(Exception):pass
+
+    class IndexError(Exception):
+        '''
+        Thrown if there is a problem with the schema definition itself.
+        '''
+    class FieldError(Exception):
+        '''
+        Thrown if arguments provided to the .search method throw an error.
+        '''
+        pass
+    class DocumentDoesNotExist(Exception):
+        '''
+        Thrown, if accessing a document through the .get method that does not exist.
+        '''
+        pass
+    class DatabaseError(Exception):
+        '''
+        Thrown, if the SQL query contains errors.
+        '''
+        pass
 
     class Argument:
+        '''
+        Helper class to store fields and its look ups provided through keyword arguments.
+        '''
 
         def __init__(self,field,lookups):
             self.field = field
             self.lookups = lookups
 
     class Lookup:
+        '''
+        Helper class to store lookups for a specific field
+        '''
 
         def __init__(self,names,value):
             self.names = names
@@ -709,13 +814,22 @@ class PocketSearch:
             self._create_table(self.schema.name)
 
     def assure_writeable(self):
+        '''
+        Tests, if the index is writable.
+        '''
         if not(self.writeable):
             raise self.IndexError("Index '%s' has been opened in read-only mode. Cannot write changes to index." % self.schema.name)
 
     def execute_sql(self,sql,*args):
+        '''
+        Executes a raw sql query against the database. sql contains the query, *args the arguments. 
+        '''
         return self.cursor.execute(sql,args)
 
     def _format_sql(self,index_name,fields,sql):
+        '''
+        Helper method to create triggers for the virtual FTS5 table.
+        '''
         return sql.format(
             index_name=index_name,
             cols=", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
@@ -724,6 +838,10 @@ class PocketSearch:
         )          
 
     def _create_additional_options(self):
+        '''
+        Reads the options defined in the meta class of the schema to provide additional information 
+        for the FTS table creation.
+        '''
         options=[]
         m=self.schema._meta
         for option in dir(m):
@@ -734,6 +852,9 @@ class PocketSearch:
         return "," + ",".join(options)
 
     def _create_table(self,index_name):
+        '''
+        Private method to create the SQL tables used by the index.
+        '''
         fields=[]
         index_fields=[]
         default_index_fields = [] # non-FTS index fields
@@ -825,6 +946,9 @@ class PocketSearch:
         self.connection.commit()            
 
     def insert(self,*args,**kwargs):
+        '''
+        Inserts a new document to the search index.
+        '''
         self.assure_writeable()
         arguments = self.get_arguments(kwargs,for_search=False)
         joined_fields = ",".join([f for f in arguments])
@@ -840,6 +964,9 @@ class PocketSearch:
         self.connection.commit()
 
     def get(self,rowid):
+        '''
+        Get a document from the index. rowid is the integer id of the document.
+        '''
         sql = "select * from %s  where id=?" % (self.schema.name,)
         fields = self.schema.get_fields()
         doc = self.cursor.execute(sql,(rowid,)).fetchone()
@@ -851,6 +978,10 @@ class PocketSearch:
         return document
 
     def update(self,**kwargs):
+        '''
+        Updates a document. A rowid keyword argument must be provided. If the 
+        the rowid is not found, no update is done and no error is thrown. 
+        '''
         self.assure_writeable()
         docid = kwargs.pop("rowid")
         arguments = self.get_arguments(kwargs,for_search=False)
@@ -863,12 +994,19 @@ class PocketSearch:
         self.connection.commit()
 
     def delete(self,rowid):
+        '''
+        Deletes a document. A rowid keyword argument must be provided. If the 
+        the rowid is not found, no deletion is done and no error is thrown. 
+        '''        
         self.assure_writeable()
         sql = "delete from %s where id = ?" % (self.schema.name)
         self.cursor.execute(sql,(rowid,))
         self.connection.commit()        
 
     def search(self,**kwargs):
+        '''
+        Searches the index. Keyword arguments must correspond to 
+        '''          
         arguments = self.get_arguments(kwargs)
         return Query(self,arguments)
 
