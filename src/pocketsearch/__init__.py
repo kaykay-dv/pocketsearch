@@ -10,7 +10,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import sqlite3
 import os
 import time
-import enum
+import abc
 
 class Timer:
     '''
@@ -62,12 +62,13 @@ class Timer:
         return s  
 
 
-class Field: 
+class Field(abc.ABC):
     '''
     Each schema has a number of fields. The field class defines the behavior of a field
     '''
 
     hidden = False
+    data_type = None # must be set by sub classes
 
     def __init__(self,name=None,schema=None,default=None,index=False,is_id_field=False):
         self.schema = schema
@@ -127,7 +128,7 @@ class Int(Field):
 
     data_type = "INTEGER"
 
-class Rank(Field): 
+class Rank(Field):
     '''
     Rank field as returned by FTS5 - it is a hidden field, meaning
     that during index creation it won't be created as actual database
@@ -318,15 +319,27 @@ class Document:
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f,getattr(self,f)) for f in self.fields])
 
-class SQLQueryComponent:
+class SQLQueryComponent(abc.ABC):
+    '''
+    Used by the SQLQuery class. Each component represents a part of 
+    the overall SQL statment, e.g. the values selected or the order by 
+    clause.
+    '''
 
     def __init__(self,sql_query):
         self.sql_query = sql_query
 
     def to_sql(self):
+        '''
+        This class must be implemented by any class subclassing SQLQueryComponent.
+        It should return a string containing valid SQL.
+        '''
         raise NotImplementedError()
 
 class Select(SQLQueryComponent):
+    '''
+    A single field selected in the query.
+    '''
 
     def __init__(self,field,sql_query):
         super().__init__(sql_query) 
@@ -343,14 +356,17 @@ class Select(SQLQueryComponent):
         return self.field.get_full_qualified_name()
 
 class Count(SQLQueryComponent):
-
-    def __init__(self,sql_query):
-        super().__init__(sql_query) 
+    '''
+    Count statement in the select part
+    '''
 
     def to_sql(self):
         return "COUNT(*)"
 
 class Table(SQLQueryComponent):
+    '''
+    Table referenced in the FROM clause
+    '''
 
     def __init__(self,table_name,sql_query):
         super().__init__(sql_query) 
@@ -391,6 +407,10 @@ LOOKUPS = {
 }
 
 class Filter(SQLQueryComponent):
+    '''
+    Abstract base class for fields referenced in 
+    the WHERE part of the SQL statement
+    '''
 
     def __init__(self,field,
                       value,
@@ -409,8 +429,11 @@ class Filter(SQLQueryComponent):
             self.operators.append("*")
 
 class MatchFilter(Filter):
+    '''
+    Full text match filter in where clause
+    '''
 
-    def escape(self,value):
+    def _escape(self,value):
         for v in self.keywords:
             # if one of the keywords have been found
             # we can abort and quote the entire value
@@ -422,10 +445,14 @@ class MatchFilter(Filter):
         return value    
 
     def to_sql(self):
-        self.sql_query.add_value(self.escape(self.value))
+        self.sql_query.add_value(self._escape(self.value))
         return "%s MATCH ?" % self.field.get_full_qualified_name()
 
 class BooleanFilter(SQLQueryComponent):
+    '''
+    Referenced field in WHERE clause that 
+    is not part of the FTS5 index.
+    '''
 
     def __init__(self,field,
                       value,
@@ -450,6 +477,10 @@ class BooleanFilter(SQLQueryComponent):
         return "%s %s ?" % (self.field.get_full_qualified_name(), self.op)
 
 class DateFilter(BooleanFilter):
+    '''
+    Referenced field in WHERE clause filtering 
+    dates.
+    '''    
 
     def __init__(self,field,
                       value,
@@ -474,6 +505,9 @@ class DateFilter(BooleanFilter):
                                                             self.op) 
 
 class OrderBy(SQLQueryComponent):
+    '''
+    Referenced field in order by clause.
+    '''       
 
     def __init__(self,field,sql_query,sort_dir=None):
         super().__init__(sql_query) 
@@ -500,6 +534,9 @@ class OrderBy(SQLQueryComponent):
         return "%s %s" % (self.field.get_full_qualified_name(),d)
 
 class LimitAndOffset(SQLQueryComponent):
+    '''
+    LIMIT and OFFSET in SQL query
+    '''           
     
     def __init__(self,limit,offset,sql_query):
         super().__init__(sql_query) 
@@ -512,6 +549,9 @@ class LimitAndOffset(SQLQueryComponent):
         return "LIMIT %s OFFSET %s" % (self.limit , self.offset)
 
 class Join(SQLQueryComponent):
+    '''
+    Join on tables in SQL query
+    '''               
 
     def __init__(self,table_left,
                        table_right,
@@ -551,15 +591,15 @@ class SQLQuery:
         Add a count(*) expression to the current query
         '''
         self.v_select.clear()
-        self.v_select.append(Count(sql_query=self))        
+        self.v_select.append(Count(sql_query=self))
 
     def select(self,field,clear=False):
         '''
         Adds field to the selected fields clause in the statement. 
         If clear is set to True, any items that have been added 
         prior will be cleared.
-        '''        
-        if clear: 
+        '''
+        if clear:
             self.v_select.clear()
         self.v_select.append(Select(field=field,sql_query=self))
 
@@ -587,8 +627,11 @@ class SQLQuery:
                                  right_field=right_field,
                                  sql_query=self))
 
-    def where(self,field,lookup,clear=False):        
-        if clear: 
+    def where(self,field,lookup,clear=False):  
+        '''
+        Set filter items. 
+        '''      
+        if clear:
             self.v_where.clear()
         if field.fts_enabled():
             filter_clazz = MatchFilter
@@ -643,12 +686,16 @@ class SQLQuery:
         return " ".join(stmt) , self.query_args
 
 class Query:
+    '''
+    The Query class is responsible for managing and constructing SQL queries
+    against the index. Most of the work is delegated to the SQLQuery class 
+    which builds the actual SQL query.
+    '''
 
     class QueryError(Exception):
         '''
         Raised if the query could not be correctly interpreted.
         '''
-        pass
 
     def __init__(self,search_instance,arguments):
         self.search_instance=search_instance
@@ -669,6 +716,9 @@ class Query:
         self.is_aggregate_query = False
 
     def count(self):
+        '''
+        Sets the query object into count mode. 
+        '''
         self.is_aggregate_query=True
         self.sql_query.count()
         for query in self.unions:
@@ -676,6 +726,10 @@ class Query:
         return self._query()
 
     def order_by(self,*args):
+        '''
+        Add order by clauses. To indicate ascending or descending order,
+        arguments should start with either "+" or ".".
+        '''        
         for a in args:
             if a.startswith("+") or a.startswith("-"):
                 field = self.search_instance.schema.get_field(a[1:],raise_exception=True)
@@ -701,6 +755,9 @@ class Query:
         return self
 
     def values(self,*args):
+        '''
+        Set the values you want to have in the search result list.
+        '''
         for a in args:
             field = self.search_instance.schema.get_field(a,raise_exception=True)            
             self.sql_query.select(field)
@@ -764,17 +821,14 @@ class PocketSearch:
         '''
         Thrown if arguments provided to the .search method throw an error.
         '''
-        pass
     class DocumentDoesNotExist(Exception):
         '''
         Thrown, if accessing a document through the .get method that does not exist.
         '''
-        pass
     class DatabaseError(Exception):
         '''
         Thrown, if the SQL query contains errors.
         '''
-        pass
 
     class Argument:
         '''
@@ -929,6 +983,9 @@ class PocketSearch:
         return arguments
 
     def insert_or_update(self,*args,**kwargs):
+        '''
+        Insert or updates a new document if it already exists. 
+        '''
         self.assure_writeable()
         if self.schema.id_field is None:
             raise self.DatabaseError("No IDFIeld has been defined in the schema - cannot perform insert_or_update.")
