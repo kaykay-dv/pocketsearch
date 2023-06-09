@@ -2,4 +2,6 @@
 A simple search engine for Python using sqlite3
 
 # Status
-https://github.com/kaykay-dv/pocketsearch/actions/workflows/python-package.yml/badge.svg
+https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg
+
+![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)
