@@ -164,6 +164,22 @@ pocket_search.search(text="world")
 pocket_search.search(text="world",filename="a.txt")
 ```
 
+# Handling updates and deletes
+
+Using the id of a document, you can run updates:
+
+```Python
+pocket_search.update(rowid=1, text="The updated text.")
+```
+
+If want to update more fields, simply provide them as keyword arguments.
+
+To delete a document, use:
+
+```Python
+pocket_search.delete(rowid=1)
+```
+
 Please note that by default an AND query is performed, thus only documents are
 matched where text contains the word "world" and the filename is "a.txt"
 
@@ -215,6 +231,9 @@ pocket_search.search(published__month=6)
 # Search documents published on 21/6/2023:
 pocket_search.search(published__month=21,published__month=6,published_year=2023)
 ```
+
+> **_NOTE:_**  In search results, datefields are automatically converted to datetime and date objects respectivley. 
+
 
 # Making your database persistent
 
