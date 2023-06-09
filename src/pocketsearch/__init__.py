@@ -1144,13 +1144,8 @@ class Index(abc.ABC):
         Populate the index in the given pocket_search
         instance.
         '''
-        t = Timer()
         for elem in self.read():
-            print(elem)
             self.pocket_search.insert_or_update(**elem)
-            # t.snapshot()
-        t.done()
-
 
 class FileSystemIndex(Index):
     '''

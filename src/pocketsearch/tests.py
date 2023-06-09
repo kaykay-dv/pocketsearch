@@ -210,10 +210,6 @@ class IndexTest(BaseTest):
         # This is a correct query:
         q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
         self.assertEqual(q1.count(), 2)
-        # print(q1[0])
-        # print(q1[1])
-        # for item in q1:
-        #    print(item)
 
     def test_order_by(self):
         r = self.pocket_search.search(text="is").values("id", "rank", "text").order_by("-text")
