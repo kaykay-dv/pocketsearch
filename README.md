@@ -17,12 +17,15 @@ to install the packacke.
 
 # Getting started
 
+By default, pocketsearch creates an in-memory database using a default 
+search index schema containing only one field called 'text':
+
 ```Python
 from pocketsearch import PocketSearch
 
 pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
-print(pocket_search.search("hello")[0].text)
-'Hello World !'
+print(pocket_search.search(text="hello")[0].text)
+Hello World !
 
 ```
