@@ -5,13 +5,13 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 setuptools.setup(
     name = "pocketsearch",
-    version = "0.5.0",
+    version = "0.5.1",
     author = "kaykay-dv",
     author_email = "kaykay2306@gmail.com",
     description = "A pure-Python full text indexing search engine based on sqlite and the FTS5 extension.",
     long_description = long_description,
     long_description_content_type = "text/markdown",
-    url = "https://github.com/kaykay-dv/pypermint",
+    url = "https://github.com/kaykay-dv/pocketsearch/",
     project_urls = {
         "Bug Tracker": "https://github.com/kaykay-dv/pocketsearch/issues",
     },
