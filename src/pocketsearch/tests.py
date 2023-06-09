@@ -71,7 +71,7 @@ class BaseTest(unittest.TestCase):
             "England is in Europe.",
             "Paris is the captial of france.",
         ]
-        self.pocket_search = PocketSearch(writeable=True)
+        self.pocket_search = PocketSearch(index_name="text_data",writeable=True)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
