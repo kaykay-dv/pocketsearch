@@ -28,6 +28,9 @@ pocket_search.insert(text="Hello World !")
 print(pocket_search.search(text="hello")[0].text)
 Hello World !
 
+From a database perspective, the new document will be immediately available 
+to the search index, as each insert is followed by a database commit.
+
 Be ware that the search methods limits results to 10 by default. Results 
 are ordered by the rank of the search result which is calculated by the 
 FTS extension in sqlite and showing how relevant a document is to a 
@@ -59,6 +62,7 @@ By invoking the count method you get the number of search results:
 ```Python
 print(pocket_search.search(text__allow_boolean="hello OR world").count())
 1
+```
 
 ## Prefix queries
 
@@ -91,6 +95,58 @@ pocket_search.search(text__allow_boolean="hello OR world").order_by("+text")
 # Order by text in descending order
 pocket_search.search(text__allow_boolean="hello OR world").order_by("-text")
 ```
+# Schemas
+
+A search index may have an arbitrary list of fields that can be searched. Schemas 
+are defined through Schema classes:
+
+```Python
+from pocketsearch import Schema, PocketSearch
+
+class FileContents(Schema):
+
+    text = Text(index=True)
+    filename = Text(is_id_field=True)
+
+# create pocketsearch instance and provide schema
+pocket_search.PocketSearch(schema=FileContents)
+pocket_search.insert(text="Hello world",filename="a.txt")
+```
+
+Following fields are available:
+
+| Field        | SQLite data type | 
+|--------------|-----------|
+| Text         | TEXT   |
+| Int          | INTEGER  |
+| Real         | REAL  |
+| Numeric      | Numeric  |
+| Blob         | Blob  |
+| Date         | Date  |
+| Datetime     | Datetime  |
+
+Following options are available for fields:
+
+* index - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
+* is_id_field - a schema can only have one IDField. It is used by the .insert_or_update method to decide if a document should be inserted or an existing document should be updated.
+
+With respect to naming your fields following restrictions apply:
+
+* Fields may not start with an underscore.
+* Fields may not contain double underscores.
+
+Once the schema is created, you can query multiple fields:
+
+```Python
+# Searches field text for "world"
+pocket_search.search(text="world")
+# Searches documents that contain "world" in text and have "a.txt" is a filename.
+# Please note: as "filename" has not set its index option, only exact matches 
+# will be considered.
+pocket_search.search(text="world",filename="a.txt")
+```
+
+
 
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
