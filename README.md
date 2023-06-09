@@ -22,7 +22,7 @@ Run
 pip install pocketsearch
 ```
 
-to install the packacke.
+to install the package.
 
 # Getting started
 
@@ -111,6 +111,7 @@ are defined through Schema classes:
 
 ```Python
 from pocketsearch import Schema, PocketSearch
+from pocketsearch import Text, Int, Real, Numeric, Blob, Date, Datetime
 
 class FileContents(Schema):
 
