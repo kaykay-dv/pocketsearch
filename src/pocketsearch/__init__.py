@@ -1181,7 +1181,6 @@ class FileSystemIndex(Index):
 
     def read(self):
         for root, dirs, files in os.walk(self.base_dir):
-            print(files)
             for file in files:
                 for extension in self.file_extensions:
                     if file.endswith(extension):

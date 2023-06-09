@@ -223,6 +223,41 @@ provide the writeable argument*, as any PocketSearch instance that works
 with file sqlite databases, is in read-only mode be default (unlike their 
 in-memory counterpart.). 
 
+# Behind the scenes: how searching works
+
+pocketsearch uses the FTS5 extension of sqlite. More information can be found here:
+https://www.sqlite.org/fts5.html
+
+Internally, it:
+
+* Creates two tables, one named "document" and one virtual table "document_idx" - the latter holds the full-text-search enabled files.
+* The document_idx table is populated through triggers on the document table. 
+* It uses the unicode61 tokenizer as default.
+
+If you want to change the tokenizer, you can do so by overriding the Meta class of a schema:
+
+
+```Python
+from pocketsearch import Schema, PocketSearch
+
+class FileContents(Schema):
+
+    class Meta:
+        '''
+        Additional options for setting up FTS5
+        See https://www.sqlite.org/fts5.html for more information.
+        If a value is set to None, we leave it up to sqlite to
+        set proper defaults.
+        '''
+        sqlite_tokenize = "unicode61" # change to available tokenizer of your choice
+        sqlite_remove_diacritics = None
+        sqlite_categories = None
+        sqlite_tokenchars = None
+        sqlite_separators = None    
+
+    text = Text(index=True)
+    filename = Text(is_id_field=True)
+
 
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
