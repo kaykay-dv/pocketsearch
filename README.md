@@ -46,7 +46,12 @@ are ordered by the rank of the search result which is calculated by the
 FTS extension in sqlite and showing how relevant a document is to a 
 given query. 
 
+The API also supports iteration:
 
+```Python
+for document in pocket_search.search(text="hello"):
+    print(document.text)
+```
 
 ## AND/OR queries
 
@@ -198,7 +203,7 @@ class AllFields(Schema):
 
     published=Datetime()
 
-pocket_search = PocketSearch(schema=self.Product)
+pocket_search = PocketSearch(schema=Product)
 # Search documents published in year 2023
 pocket_search.search(published__year=2023)
 # Search document published after 2020
