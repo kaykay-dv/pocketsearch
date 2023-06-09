@@ -26,8 +26,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Text Processing :: Indexing",        
-        ""
+        "Topic :: Text Processing :: Indexing"
     ],
     package_dir = {"": "src"},
     packages = setuptools.find_packages(where="src"),
