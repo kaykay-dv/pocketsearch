@@ -5,22 +5,31 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 setuptools.setup(
     name = "pocketsearch",
-    version = "0.0.1",
+    version = "0.5.0",
     author = "kaykay-dv",
     author_email = "kaykay2306@gmail.com",
-    description = "A simple python search index",
+    description = "A pure-Python full text indexing search engine based on sqlite and the FTS5 extension.",
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://github.com/kaykay-dv/pypermint",
     project_urls = {
-        "Bug Tracker": "package issues URL",
+        "Bug Tracker": "https://github.com/kaykay-dv/pocketsearch/issues",
     },
     classifiers = [
-        "Programming Language :: Python :: 3",
+        "Development Status :: 4 - Beta",
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Intended Audience :: Developers",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Text Processing :: Indexing",        
+        ""
     ],
     package_dir = {"": "src"},
     packages = setuptools.find_packages(where="src"),
-    python_requires = ">=3.6"
+    python_requires = ">=3.8"
 )
