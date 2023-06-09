@@ -1,5 +1,10 @@
-name: Publish to TestPyPI
-on: push
+name: Publish to PyPI (Test+Prod)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "development" ]
 
 jobs:
   build-n-publish:
