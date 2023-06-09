@@ -46,7 +46,12 @@ are ordered by the rank of the search result which is calculated by the
 FTS extension in sqlite and showing how relevant a document is to a 
 given query. 
 
+The API also supports iteration:
 
+```Python
+for document in pocket_search.search(text="hello"):
+    print(document.text)
+```
 
 ## AND/OR queries
 
@@ -146,6 +151,8 @@ With respect to naming your fields following restrictions apply:
 * Fields may not start with an underscore.
 * Fields may not contain double underscores.
 
+> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document.
+
 Once the schema is created, you can query multiple fields:
 
 ```Python
@@ -155,6 +162,22 @@ pocket_search.search(text="world")
 # Please note: as "filename" has not set its index option, only exact matches 
 # will be considered.
 pocket_search.search(text="world",filename="a.txt")
+```
+
+# Handling updates and deletes
+
+Using the id of a document, you can run updates:
+
+```Python
+pocket_search.update(rowid=1, text="The updated text.")
+```
+
+If want to update more fields, simply provide them as keyword arguments.
+
+To delete a document, use:
+
+```Python
+pocket_search.delete(rowid=1)
 ```
 
 Please note that by default an AND query is performed, thus only documents are
@@ -198,7 +221,7 @@ class AllFields(Schema):
 
     published=Datetime()
 
-pocket_search = PocketSearch(schema=self.Product)
+pocket_search = PocketSearch(schema=Product)
 # Search documents published in year 2023
 pocket_search.search(published__year=2023)
 # Search document published after 2020
@@ -208,6 +231,9 @@ pocket_search.search(published__month=6)
 # Search documents published on 21/6/2023:
 pocket_search.search(published__month=21,published__month=6,published_year=2023)
 ```
+
+> **_NOTE:_**  In search results, datefields are automatically converted to datetime and date objects respectivley. 
+
 
 # Making your database persistent
 
