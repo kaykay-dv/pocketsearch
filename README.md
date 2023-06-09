@@ -178,7 +178,7 @@ pocket_search.search(price__gte=3)
 pocket_search.search(price__gte=3,description="apple")
 ```
 
-# Searching data fields
+# Searching date fields
 
 pocketsearch also provides some (experimental) support for searching dates:
 
@@ -197,6 +197,23 @@ pocket_search.search(published__month=6)
 # Search documents published on 21/6/2023:
 pocket_search.search(published__month=21,published__month=6,published_year=2023)
 ```
+
+# Making your database persistent
+
+The previous examples use an in-memory sqlite database. If you want to actually store 
+the database, you have to provide a name:
+
+```Python
+pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
+# now, all operations will be done on the my_db database that is stored in the 
+# current working directory.
+```
+
+When working with search indices that are stored on disk, *it is important to 
+provide the writeable argument*, as any PocketSearch instance that works 
+with file sqlite databases, is in read-only mode be default (unlike their 
+in-memory counterpart.). 
+
 
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
