@@ -146,7 +146,57 @@ pocket_search.search(text="world")
 pocket_search.search(text="world",filename="a.txt")
 ```
 
+Please note that by default an AND query is performed, thus only documents are
+matched where text contains the word "world" and the filename is "a.txt"
 
+# Searching numeric data
+
+You can also search for numeric data:
+
+```Python
+class Product(Schema):
+
+    price = Int()
+    description = Text(index=True) # Full text index
+    category = Text()  # not part of FT index
+```
+
+```Python
+pocket_search = PocketSearch(schema=Product)
+# Create some sensible test data before proceeding ...
+# Matches products with price=3
+pocket_search.search(price=3)
+# Matches products with price greater than 3
+pocket_search.search(price__gt=3)
+# Matches products with price lower than 3
+pocket_search.search(price__lt=3)
+# Matches products with price lower than equal 3
+pocket_search.search(price__lte=3)
+# Matches products with price greater than equal 3
+pocket_search.search(price__gte=3)
+# Matches products with price greater than equal 3 AND where the description contains "apple".
+pocket_search.search(price__gte=3,description="apple")
+```
+
+# Searching data fields
+
+pocketsearch also provides some (experimental) support for searching dates:
+
+```Python
+class AllFields(Schema):
+
+    published=Datetime()
+
+pocket_search = PocketSearch(schema=self.Product)
+# Search documents published in year 2023
+pocket_search.search(published__year=2023)
+# Search document published after 2020
+pocket_search.search(published__year__gt=2023)
+# Search documents published in month 6
+pocket_search.search(published__month=6)
+# Search documents published on 21/6/2023:
+pocket_search.search(published__month=21,published__month=6,published_year=2023)
+```
 
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
