@@ -151,7 +151,7 @@ With respect to naming your fields following restrictions apply:
 * Fields may not start with an underscore.
 * Fields may not contain double underscores.
 
-> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document.
+> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document.
 
 Once the schema is created, you can query multiple fields:
 
