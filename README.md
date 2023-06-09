@@ -293,7 +293,7 @@ You can have multiple indicies in one database (only databases written to disk) 
 the "index_name" option:
 
 ```Python
-pocket_search = PocketSearch(index_name="Product",schema=Product)
+pocket_search = PocketSearch(db_name="my_db.db",index_name="Product",schema=Product)
 ```
 
 # Contribute
