@@ -257,7 +257,7 @@ class FileContents(Schema):
 
     text = Text(index=True)
     filename = Text(is_id_field=True)
-
+```
 
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
