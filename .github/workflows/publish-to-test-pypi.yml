@@ -1,10 +1,11 @@
-name: Publish to PyPI (Test+Prod)
+name: Publish to PyPI
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "development" ]
+    branches: [ "main" ]
+
 
 jobs:
   build-n-publish:
@@ -30,11 +31,6 @@ jobs:
         --sdist
         --wheel
         --outdir dist/
-    - name: Publish distribution to TEST PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository-url: https://test.pypi.org/legacy/
     - name: Publish distribution to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
