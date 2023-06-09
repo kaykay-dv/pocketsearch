@@ -88,6 +88,14 @@ providing the allow_prefix lookup:
 print(pocket_search.search(text__allow_prefix="hel*")[0].text)
 ```
 
+## Phrase queries
+
+If you want to search for phrases, use quotation marks:
+
+```Python
+pocket_search.search(text='"this is" "a phrase"').count()
+```
+
 ## Combining lookups
 
 Lookups can also be combined:
