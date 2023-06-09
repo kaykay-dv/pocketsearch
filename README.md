@@ -36,6 +36,7 @@ pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
 print(pocket_search.search(text="hello")[0].text)
 Hello World !
+```
 
 From a database perspective, the new document will be immediately available 
 to the search index, as each insert is followed by a database commit.
@@ -45,7 +46,7 @@ are ordered by the rank of the search result which is calculated by the
 FTS extension in sqlite and showing how relevant a document is to a 
 given query. 
 
-```
+
 
 ## AND/OR queries
 

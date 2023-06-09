@@ -5,7 +5,7 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 setuptools.setup(
     name = "pocketsearch",
-    version = "0.5.1",
+    version = "0.5.2",
     author = "kaykay-dv",
     author_email = "kaykay2306@gmail.com",
     description = "A pure-Python full text indexing search engine based on sqlite and the FTS5 extension.",
@@ -26,8 +26,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Text Processing :: Indexing",        
-        ""
+        "Topic :: Text Processing :: Indexing"
     ],
     package_dir = {"": "src"},
     packages = setuptools.find_packages(where="src"),
