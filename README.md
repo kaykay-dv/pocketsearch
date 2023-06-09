@@ -2,7 +2,7 @@
 pocketsearch is a pure-Python full text indexing search engine based on sqlite and the FTS5 extension. It provides
 
 - Support for full text search
-- A simple API for defining schemas and searching
+- A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
 - Support for text, numeric and date search
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
@@ -158,11 +158,23 @@ Once the schema is created, you can query multiple fields:
 ```Python
 # Searches field text for "world"
 pocket_search.search(text="world")
-# Searches documents that contain "world" in text and have "a.txt" is a filename.
+# Searches documents that contain "world" in text AND have "a.txt" is a filename.
 # Please note: as "filename" has not set its index option, only exact matches 
 # will be considered.
 pocket_search.search(text="world",filename="a.txt")
 ```
+
+> **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND. Currently, there is no way to express OR queries in the .search method.
+
+However, you can join 2 queries (resulting in a UNION statement in SQL):
+
+```Python
+q = pocket_search.search(text="world") | pocket_search.search(filename="world")
+for result in q:
+    print(result.text)
+```
+
+This option is currently experimental and still has issues, espcially when accessing results through indexing. 
 
 # Handling updates and deletes
 
@@ -293,7 +305,7 @@ You can have multiple indicies in one database (only databases written to disk) 
 the "index_name" option:
 
 ```Python
-pocket_search = PocketSearch(index_name="Product",schema=Product)
+pocket_search = PocketSearch(db_name="my_db.db",index_name="Product",schema=Product)
 ```
 
 # Contribute
