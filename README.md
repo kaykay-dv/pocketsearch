@@ -169,10 +169,12 @@ pocket_search.search(text="world",filename="a.txt")
 However, you can join 2 queries (resulting in a UNION statement in SQL):
 
 ```Python
-q = pocket_search.search(text="world") | pocket_search.search(filename="world")
+q = pocket_search.search(text="world") | pocket_search.search(filename="a.txt")
 for result in q:
     print(result.text)
 ```
+
+The result will contain all documents containing either "world" or where the filename is "a.text".
 
 This option is currently experimental and still has issues, espcially when accessing results through indexing. 
 
