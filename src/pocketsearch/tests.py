@@ -1,7 +1,9 @@
+import os.path
 import unittest
+import tempfile
 import datetime
 
-from pocketsearch import Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
+from pocketsearch import FileSystemIndex, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
 
 
 class Movie(Schema):
@@ -492,6 +494,30 @@ class StructuredDataTests(unittest.TestCase):
 
     def test_filter_combined_and_or(self):
         self.assertEqual(self.pocket_search.search(price__lte=4, description__allow_boolean="apple OR Orange").count(), 2)
+
+
+class FileSystemReaderTests(unittest.TestCase):
+
+    def test_build_index(self):
+        self.files_to_index = []
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            for file_name, contents in [
+                ("a.txt", "Hello world !"),
+                ("b.txt", "Good bye world !"),
+                ("c.txt", "Hello again, world !"),
+            ]:
+                f = open(os.path.join(tmpdirname, file_name), "w")
+                f.write(contents)
+                f.close()
+            index = FileSystemIndex(base_dir=tmpdirname, file_extensions=[".txt"])
+            index.build()
+            self.assertEqual(index.search(text="world").count(), 3)
+            self.assertEqual(index.search(text="bye").count(), 1)
+            self.assertEqual(index.search(filename="d.txt").count(), 0)
+            # rebuild the index, the number of documents should not
+            # change as they have only been updated
+            index.build()
+            self.assertEqual(index.search(text="world").count(), 3)
 
 
 if __name__ == '__main__':

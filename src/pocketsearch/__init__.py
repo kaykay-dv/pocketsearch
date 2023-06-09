@@ -1116,17 +1116,75 @@ class PocketSearch:
         return Query(self, arguments)
 
 
-if __name__ == "__main__":
-    p = PocketSearch(db_name="eu.db")
-    for item in p.search(text="merkel"):
-        print(item.text[0:50])
+class Index(abc.ABC):
+    '''
+    An abstract base class for index readers. Reader classes
+    scan through a source (e.g. the file system or some web site)
+    and retrieve documents that should be indexed.
+    '''
 
-    #t = Timer()
-    # for root, dirs, files in os.walk("/Users/karlkreiner/Desktop/code/git/eu_parliament/DCEP/"):
-    #        for file in files:
-    #            if file.endswith(".txt"):
-    #                file_path = os.path.join(root, file)
-    #                with open(file_path, 'r') as file:
-    #                    p.insert(text=file.read())
-    #                    t.snapshot()
-    # t.done()
+    def read(self):
+        '''
+        Subclasses need to implement this method.
+        It should return a list of dictionaries
+        where each dictionary entry represents
+        a document in the schema.
+        '''
+        raise NotImplementedError()
+
+    def search(self, *args, **kwargs):
+        '''
+        Wrapper method around the local pocket_search
+        object instance.
+        '''
+        return self.pocket_search.search(*args, **kwargs)
+
+    def build(self):
+        '''
+        Populate the index in the given pocket_search
+        instance.
+        '''
+        t = Timer()
+        for elem in self.read():
+            print(elem)
+            self.pocket_search.insert_or_update(**elem)
+            # t.snapshot()
+        t.done()
+
+
+class FileSystemIndex(Index):
+    '''
+    Index files and their contents from a directory.
+    The FileSystemReader expects a schema containing
+    following fields:
+
+    - filename (TEXT, unique=True)
+    - text (TEXT, index=True)
+
+    '''
+
+    class FileContents(Schema):
+
+        text = Text(index=True)
+        filename = Text(is_id_field=True)
+
+    def __init__(self, base_dir="./", file_extensions=[".txt"]):
+        self.base_dir = base_dir
+        self.file_extensions = file_extensions
+        self.pocket_search = PocketSearch(schema=self.FileContents, writeable=True)
+
+    def file_to_dict(self, file_path, file):
+        '''
+        Open the file and transform it to a dictionary.
+        '''
+        return {"filename": file_path, "text": file.read()}
+
+    def read(self):
+        for root, dirs, files in os.walk(self.base_dir):
+            print(files)
+            for file in files:
+                for extension in self.file_extensions:
+                    if file.endswith(extension):
+                        file_path = os.path.join(root, file)
+                        with open(file_path, 'r') as file:
+                            yield(self.file_to_dict(file_path, file))
