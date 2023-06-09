@@ -260,6 +260,15 @@ class FileContents(Schema):
     filename = Text(is_id_field=True)
 ```
 
+# Multiple indicies in one database
+
+You can have multiple indicies in one database (only databases written to disk) by setting 
+the "index_name" option:
+
+```Python
+pocket_search = PocketSearch(index_name="Product",schema=Product)
+```
+
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
 at https://github.com/kaykay-dv/pocketsearch/issues
