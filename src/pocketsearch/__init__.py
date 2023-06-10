@@ -23,6 +23,7 @@ class Timer:
 
     def __init__(self, precision=5):
         self.start = time.time()
+        self.stop = self.start
         self.precision = precision
         self.total_time = 0
         self.laps = []
@@ -37,15 +38,21 @@ class Timer:
             self.total_time += time.time()-self.laps[-1:][0][1]
         self.laps.append((name, time.time()))
 
+    def get_its(self):
+        '''
+        Returns current number of iterations per second
+        '''
+        return round(1/((self.stop-self.start)/self.snapshots), self.precision)
+
     def snapshot(self, more_info=""):
         '''
         Prints out the current iteration and statistics on time consumed.
         more_info maybe used on what is actually done.
         '''
-        stop = time.time()
+        self.stop = time.time()
         self.snapshots = self.snapshots+1
-        its = round(1/((stop-self.start)/self.snapshots), self.precision)
-        out = "%s iterations %s it/s %s s elapsed %s%s" % (self.snapshots, its, round(stop-self.start, self.precision), more_info, " "*15)
+        its = self.get_its()
+        out = "%s iterations %s it/s %s s elapsed %s%s" % (self.snapshots, its, round(self.stop-self.start, self.precision), more_info, " "*15)
         print(out, end="\r", flush=True)
 
     def done(self):

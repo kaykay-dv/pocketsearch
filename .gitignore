@@ -3,11 +3,16 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.DS_Store
+
 * DB files
 *.db
 
 # C extensions
 *.so
+
+# data directories
+.data
 
 # Distribution / packaging
 .Python
