@@ -133,6 +133,15 @@ class IndexTest(BaseTest):
         with self.assertRaises(pocket_search.IndexError):
             pocket_search.insert(text="21")
 
+    def test_optimize_within_tranascation(self):
+        pocket_search = PocketSearch()
+        pocket_search.insert(text="123")        
+        pocket_search.commit()
+        #with self.assertRaises(Exception):
+        # this should not work, as vacuum is not allowed at this stage
+        pocket_search.optimize()
+
+
     def test_use_insert_update_with_lookups(self):
         pocket_search = PocketSearch()
         with self.assertRaises(pocket_search.FieldError):

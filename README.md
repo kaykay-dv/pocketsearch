@@ -141,6 +141,8 @@ pocket_search.PocketSearch(schema=FileContents)
 pocket_search.insert(text="Hello world",filename="a.txt")
 ```
 
+## Fields
+
 Following fields are available:
 
 | Field        | SQLite data type | 
@@ -190,7 +192,9 @@ The result will contain all documents containing either "world" or where the fil
 
 This option is currently experimental and still has issues, espcially when accessing results through indexing. 
 
-# Handling updates and deletes
+# Inserting, updating and deleting data
+
+## Handling updates and deletes
 
 Using the id of a document, you can run updates:
 
@@ -206,7 +210,7 @@ To delete a document, use:
 pocket_search.delete(rowid=1)
 ```
 
-# Using index readers to insert data
+## Using index readers to insert data
 
 Normally we have a data source at hand (e.g. files in a file system or a source database) that we use to read 
 data from. IndexReader classes can be used to build an index from such a data source. Assume, you want to 
@@ -236,7 +240,23 @@ by implementing the abstract class IndexError implementing a .read method. The .
 iterable containing dictionaries whereas the dictionary's keys correspond to schema fields and its values 
 the data you want to insert for the document. 
 
-# Searching numeric data
+## Optimizing the index for query performance
+If you have inserted a large volume of new documents, it might be sensible 
+to optimize the index for query performance. This can be achieved by 
+running VACUUM ANALYSE on the database, pocketsearch has a convenience 
+method for this, that can be run e.g. after the indexing process is 
+complete:
+
+```Python
+pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
+pocket_search.optimize()
+```
+
+Note, that this will close the current database connection and establish a new one. 
+
+# More search options
+
+## Searching numeric data
 
 You can also search for numeric data:
 
@@ -265,7 +285,7 @@ pocket_search.search(price__gte=3)
 pocket_search.search(price__gte=3,description="apple")
 ```
 
-# Searching date fields
+## Searching date fields
 
 pocketsearch also provides some (experimental) support for searching dates:
 

@@ -905,21 +905,33 @@ class PocketSearch:
     def __init__(self, db_name=None,
                  index_name="documents",
                  schema=DefaultSchema,
-                 writeable=False):
+                 writeable=False,
+                 write_buffer_size=1):
         self.db_name = db_name
-        self.schema = schema(index_name)
-        if db_name is None:
-            self.connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        else:
-            self.connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        self.connection.row_factory = sqlite3.Row
+        self.connection = self._open()
         self.cursor = self.connection.cursor()
+        self.schema = schema(index_name)
         self.db_name = db_name
         self.writeable = writeable
+        self.write_buffer=0 # keep a record of writes performed by insert statement
+        self.write_buffer_size=write_buffer_size
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
+
+    def _open(self):
+        if self.db_name is None:
+            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        else:
+            connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _close(self):
+        if self.connection:
+            self.connection.close()
+            self.connection = None
 
     def assure_writeable(self):
         '''
@@ -977,22 +989,22 @@ class PocketSearch:
         if len(index_fields) == 0:
             raise IndexError("Schema does not have a single indexable field.")
         sql_table = '''
-        CREATE TABLE %s(%s)
+        CREATE TABLE IF NOT EXISTS %s(%s)
         ''' % (index_name, ", ".join([field.to_sql() for field in fields]))
         sql_virtual_table = '''
-        CREATE VIRTUAL TABLE %s_fts USING fts5(%s, content='%s', content_rowid='id' %s);
+        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s);
         ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options())
         # Trigger definitions:
         sql_trigger_insert = '''
-        CREATE TRIGGER {index_name}_ai AFTER INSERT ON {index_name} BEGIN
+        CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
         INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
         END;'''
         sql_trigger_delete = '''
-        CREATE TRIGGER {index_name}_ad AFTER DELETE ON {index_name} BEGIN
+        CREATE TRIGGER IF NOT EXISTS {index_name}_ad AFTER DELETE ON {index_name} BEGIN
         INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
         END;'''
         sql_trigger_update = '''
-        CREATE TRIGGER {index_name}_au AFTER UPDATE ON {index_name} BEGIN
+        CREATE TRIGGER IF NOT EXISTS {index_name}_au AFTER UPDATE ON {index_name} BEGIN
         INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
         INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
         END;
@@ -1065,11 +1077,34 @@ class PocketSearch:
             raise self.DatabaseError(sql_error)
         self.connection.commit()
 
+    def commit(self):
+        '''
+        Commit current changes to database. Commits are only performed 
+        when the buffer is full.
+        '''
+        if self.write_buffer > self.write_buffer_size:
+            self.write_buffer=0 # reset buffer
+            self.connection.commit()
+
+    def optimize(self):
+        '''
+        Runs table optimization that can be run after a huge amount 
+        of data has been inserted to the database.
+        Technically, this runs a VACUUM ANALYSE command on the 
+        database, resulting in potential query speed ups.
+        '''
+        self.assure_writeable()
+        self._close() # close old connection, so we do not have any conflicts
+        connection = self._open()
+        connection.cursor().execute("VACUUM")
+        connection.close()
+
     def insert(self, *args, **kwargs):
         '''
         Inserts a new document to the search index.
         '''
         self.assure_writeable()
+        self.write_buffer = self.write_buffer + 1
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
@@ -1081,7 +1116,7 @@ class PocketSearch:
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        self.connection.commit()
+        self.commit()
 
     def get(self, rowid):
         '''
@@ -1111,7 +1146,10 @@ class PocketSearch:
             stmt.append("%s=?" % f)
         sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
         self.cursor.execute(sql, values)
-        self.connection.commit()
+        if self.write_buffer > self.write_buffer_size:
+            self.write_buffer=0
+            self.connection.commit()        
+        self.commit()
 
     def delete(self, rowid):
         '''
@@ -1121,7 +1159,7 @@ class PocketSearch:
         self.assure_writeable()
         sql = "delete from %s where id = ?" % (self.schema.name)
         self.cursor.execute(sql, (rowid,))
-        self.connection.commit()
+        self.commit()
 
     def search(self, **kwargs):
         '''
