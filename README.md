@@ -202,8 +202,35 @@ To delete a document, use:
 pocket_search.delete(rowid=1)
 ```
 
-Please note that by default an AND query is performed, thus only documents are
-matched where text contains the word "world" and the filename is "a.txt"
+# Using index readers to insert data
+
+Normally we have a data source at hand (e.g. files in a file system or a source database) that we use to read 
+data from. IndexReader classes can be used to build an index from such a data source. Assume, you want to 
+index text files from a directory, we first define a schema:
+
+```Python
+class FileSchema(Schema):
+
+        text = Text(index=True)
+        filename = Text(is_id_field=True) 
+```
+
+Next, we create a PocketSearch and 
+
+```Python
+from pocketsearch import FileSystemReader
+pocket_search = PocketSearch(schema=FileSchema)
+reader = FileSystemReader(base_dir="/some/directory", file_extensions=[".txt"])
+pocket_search.build(reader)
+```
+
+This will be build the index. If a document has already be seen it will be updated, a new document will be 
+inserted otherwise. 
+
+Currently, the FileSystemReader is the only implementation provided, however you can easily implement your own 
+by implementing the abstract class IndexError implementing a .read method. The .read method should return an 
+iterable containing dictionaries whereas the dictionary's keys correspond to schema fields and its values 
+the data you want to insert for the document. 
 
 # Searching numeric data
 
