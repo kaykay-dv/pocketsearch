@@ -19,11 +19,14 @@ The input data (retrieved on 01-02-2023) is roughly 1 GB in size.
 
 ## Setup
 
-It can be run using
+Create a folder called ".data", download https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz and extract it 
+to this directory. Then run:
 
 ```Python
 python wikipedia.py
 ```
+
+It will produce 2 pngs illustrating index runtime and RAM usage.
 
 ## Results
 
