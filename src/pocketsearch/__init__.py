@@ -1096,7 +1096,7 @@ class PocketSearch:
         self.assure_writeable()
         self._close() # close old connection, so we do not have any conflicts
         connection = self._open()
-        connection.cursor().execute("VACUUM ANALYSE")
+        connection.cursor().execute("VACUUM")
         connection.close()
 
     def insert(self, *args, **kwargs):
