@@ -1,9 +1,8 @@
-== Introduction ==
+# Introduction
 This part of the repository contains experiments made with the pocketsearch library investigating 
 
 * Time to build up an index
 * RAM consumption during indexing
-* Query time
 
 If you want to try the experiments on your own, make sure to install the requirements first:
 
@@ -36,6 +35,10 @@ Run on an Apple M1 (8GB RAM)) using Python 3.8 this yields following results:
 The following diagram illustrates the number of documents indexed at time intervals 
 (sample rate 1000 documents) in orange and RAM consumption in MB (blue line):
 
+![Performance metrics](https://github.com/kaykay-dv/pocketsearch/blob/development/tests/wikipedia_avg_docs_indexed.png "Performance metrics")
+
+> **_NOTE:_** Please be careful when generalizing this results. Indexing performance may vary depending on the nature of data you are actually writing 
+to the index and many other factors.
 
 
 
