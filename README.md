@@ -3,16 +3,20 @@ pocketsearch is a pure-Python full text indexing search engine based on sqlite a
 
 - Support for full text search
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
-- Support for text, numeric and date search
+- Support for multi-field indices including text, numeric and date search
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
+
+pocketsearch is currently being tested on data from Wikipedia, indexing more than 6 million abstracts. If you 
+are interested in preliminary performance tests, have a look at https://github.com/kaykay-dv/pocketsearch/tree/development/tests.
 
 # Status
 The package is currently in Beta status.
 
 ![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)
 ![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
+
 
 # Installation
 
@@ -224,7 +228,7 @@ reader = FileSystemReader(base_dir="/some/directory", file_extensions=[".txt"])
 pocket_search.build(reader)
 ```
 
-This will be build the index. If a document has already be seen it will be updated, a new document will be 
+This will build the index. If a document has already been seen it will be updated, a new document will be 
 inserted otherwise. 
 
 Currently, the FileSystemReader is the only implementation provided, however you can easily implement your own 

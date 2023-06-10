@@ -7,7 +7,7 @@ This part of the repository contains experiments made with the pocketsearch libr
 If you want to try the experiments on your own, make sure to install the requirements first:
 
 ```Python
-pip install -r reqiurements.txt
+pip install -r requirements.txt
 ```
 
 > **_NOTE:_** Please note that the test data is not part of this repository and has to be downloaded from the referenced sources.
@@ -15,7 +15,7 @@ pip install -r reqiurements.txt
 #  wikipedia.py
 This experiment investigates indexing a dump of English Wikipedia abstracts (see 
 https://en.wikipedia.org/wiki/Wikipedia:Database_download for more information).
-The input data (retrieved on 01-02-2023) is roughly 1 GB in size. 
+The input data (retrieved on 10/06/2023) is roughly 1 GB in size. 
 
 ## Setup
 
@@ -40,7 +40,7 @@ The following diagram illustrates the number of documents indexed at time interv
 
 ![Performance metrics](https://github.com/kaykay-dv/pocketsearch/blob/development/tests/wikipedia_avg_docs_indexed.png "Performance metrics")
 
-> **_NOTE:_** Please be careful when generalizing this results. Indexing performance may vary depending on the nature of data you are actually writing 
+> **_NOTE:_** Please be careful when generalizing these results. Indexing performance may vary depending on the nature of data you are actually written 
 to the index and many other factors.
 
 
