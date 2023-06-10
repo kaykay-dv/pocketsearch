@@ -35,7 +35,8 @@ class WikipediaAbstractSAXParser(xml.sax.ContentHandler):
         self.wiki_pages=[]
         self.count=0
         self.timer = pocketsearch.Timer()
-        self.index = pocketsearch.PocketSearch(db_name="en_wikipedia.db",schema=Wikipedia,writeable=True)
+        # set the write buffer to 1500 to speed up inserts
+        self.index = pocketsearch.PocketSearch(db_name="en_wikipedia.db",schema=Wikipedia,writeable=True,write_buffer_size=1500)
         self.ram_usage = []
         self.avg_docs_indexed = []
 
@@ -71,7 +72,9 @@ if __name__ == "__main__":
     handler = WikipediaAbstractSAXParser()
     parser = xml.sax.make_parser()
     parser.setContentHandler(handler)
-    parser.parse("data/enwiki-latest-abstract.xml")
+    parser.parse(".data/enwiki-latest-abstract.xml")
+    handler.index.commit() # flush last changes
+    handler.index.optimize()
     plot('wikipedia_ram_usage.png','# Number of documents indexed','RAM Usage in MB','RAM Usage over Time',handler.ram_usage)
     plot('wikipedia_avg_docs_indexed.png','# Number of documents indexed','Average number of indexed documents','Average number of indexed documents over time',handler.avg_docs_indexed)
     

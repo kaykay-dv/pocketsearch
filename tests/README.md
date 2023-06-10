@@ -33,7 +33,7 @@ It will produce 2 pngs illustrating index runtime and RAM usage.
 Run on an Apple M1 (8GB RAM)) using Python 3.8 this yields following results:
 
 - It indexes more then 6.6 million abstracts
-- ~ 2.000 abstracts are indexed per seconds
+- ~ 15.000 abstracts are indexed per second (using the write_buffer_size option of PocketSearch's constructor)
 
 The following diagram illustrates the number of documents indexed at time intervals 
 (sample rate 1000 documents) in orange and RAM consumption in MB (blue line):
@@ -42,6 +42,15 @@ The following diagram illustrates the number of documents indexed at time interv
 
 > **_NOTE:_** Please be careful when generalizing these results. Indexing performance may vary depending on the nature of data you are actually written 
 to the index and many other factors.
+
+## Queries
+
+Some queries run against the index (search for title OR text):
+
+| Query        | Query time (in s) | 
+|--------------|-----------|
+| London         | 0.18s   |
+| England        | 0.34s  |
 
 
 
