@@ -240,7 +240,7 @@ by implementing the abstract class IndexError implementing a .read method. The .
 iterable containing dictionaries whereas the dictionary's keys correspond to schema fields and its values 
 the data you want to insert for the document. 
 
-# Optimizing the index for query performance
+## Optimizing the index for query performance
 If you have inserted a large volume of new documents, it might be sensible 
 to optimize the index for query performance. This can be achieved by 
 running VACUUM ANALYSE on the database, pocketsearch has a convenience 
