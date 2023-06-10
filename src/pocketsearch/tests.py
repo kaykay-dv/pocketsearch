@@ -3,7 +3,7 @@ import unittest
 import tempfile
 import datetime
 
-from pocketsearch import FileSystemIndex, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
+from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
 
 
 class Movie(Schema):
@@ -494,6 +494,11 @@ class StructuredDataTests(unittest.TestCase):
 
 class FileSystemReaderTests(unittest.TestCase):
 
+    class FileSchema(Schema):
+
+        text = Text(index=True)
+        filename = Text(is_id_field=True)    
+
     def test_build_index(self):
         self.files_to_index = []
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -502,18 +507,19 @@ class FileSystemReaderTests(unittest.TestCase):
                 ("b.txt", "Good bye world !"),
                 ("c.txt", "Hello again, world !"),
             ]:
-                f = open(os.path.join(tmpdirname, file_name), "w")
+                f = open(os.path.join(tmpdirname, file_name), "w", encoding="utf-8")
                 f.write(contents)
                 f.close()
-            index = FileSystemIndex(base_dir=tmpdirname, file_extensions=[".txt"])
-            index.build()
-            self.assertEqual(index.search(text="world").count(), 3)
-            self.assertEqual(index.search(text="bye").count(), 1)
-            self.assertEqual(index.search(filename="d.txt").count(), 0)
+            pocket_search = PocketSearch(schema=self.FileSchema)
+            reader = FileSystemReader(base_dir=tmpdirname, file_extensions=[".txt"])
+            pocket_search.build(reader)
+            self.assertEqual(pocket_search.search(text="world").count(), 3)
+            self.assertEqual(pocket_search.search(text="bye").count(), 1)
+            self.assertEqual(pocket_search.search(filename="d.txt").count(), 0)
             # rebuild the index, the number of documents should not
             # change as they have only been updated
-            index.build()
-            self.assertEqual(index.search(text="world").count(), 3)
+            pocket_search.build(reader)
+            self.assertEqual(pocket_search.search(text="world").count(), 3)
 
 
 if __name__ == '__main__':
