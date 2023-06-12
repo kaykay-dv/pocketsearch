@@ -202,25 +202,40 @@ class IndexTest(BaseTest):
         for idx, item in enumerate(self.pocket_search.search(text="is")):
             item.text  # just check, if it possible to call the attribute
 
-    def test_combine_search_results_illegal_calls(self):
+    def test_combine_search_results_1(self):
         '''
         These are all invalid queries. When we perform
         a union order by or value arguments cannot be
-        provided.
+        provided. UC: order_by in second query
         '''
         with self.assertRaises(Query.QueryError):
-            q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england").order_by("rank")
+            q = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england").order_by("rank")
+
+    def test_combine_search_results_2(self):
+        '''
+        These are all invalid queries. When we perform
+        a union order by or value arguments cannot be
+        provided. UC: order_by in first query
+        '''
         with self.assertRaises(Query.QueryError):
-            q1 = self.pocket_search.search(text="paris").order_by("rank") | self.pocket_search.search(text="england")
+            q = self.pocket_search.search(text="paris").order_by("rank") | self.pocket_search.search(text="england")
+
+    def test_combine_search_results_3(self):
+        '''
+        These are all invalid queries. When we perform
+        a union order by or value arguments cannot be
+        provided.  UC: values in both queries
+        '''        
         with self.assertRaises(Query.QueryError):
-            self.pocket_search.search(text="paris").values("id") | self.pocket_search.search(text="paris").values("id")
+            q = self.pocket_search.search(text="paris").values("id") | self.pocket_search.search(text="paris").values("id")
 
     def test_combine_search_results(self):
         # This is a correct query:
         q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
         self.assertEqual(q1.count(), 2)
 
-    def test_order_by(self):
+    def test_order_by_override_default_order_by(self):
+        # This should override the default rank sorting by the text sorting
         r = self.pocket_search.search(text="is").values("id", "rank", "text").order_by("-text")
         self.assertEqual(r[0].text, self.data[0])
         self.assertEqual(r[1].text, self.data[2])
@@ -413,7 +428,7 @@ class FieldTypeTests(unittest.TestCase):
 
     class AllFields(Schema):
 
-        f1 = Int()
+        f1 = Int(index=True) # implicitly tests if non-fts index generation work
         f2 = Text(index=True)
         f3 = Blob()
         f4 = Real()
