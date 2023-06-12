@@ -45,16 +45,22 @@ Hello World !
 From a database perspective, the new document will be immediately available 
 to the search index, as each insert is followed by a database commit.
 
-Be ware that the search methods limits results to 10 by default. Results 
+Be aware that the search methods limits results to 10 by default. Results 
 are ordered by the rank of the search result which is calculated by the 
-FTS extension in sqlite and showing how relevant a document is to a 
-given query. 
+FTS extension in sqlite (see https://www.sqlite.org/fts5.html#the_bm25_function for more details) 
+showing how relevant a document is to a given query. 
 
 The API also supports iteration:
 
 ```Python
 for document in pocket_search.search(text="hello"):
     print(document.text)
+```
+
+There is also supported for slicing:
+
+```Python
+pocket_search.search(text="hello")[1:3]
 ```
 
 ## AND/OR queries
