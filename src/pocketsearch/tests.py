@@ -108,6 +108,10 @@ class OperatorSearch(BaseTest):
     Tests covering the usage of boolean operators and prefix search
     '''
 
+    def test_search_len_func(self):
+        # test application of len function to search result
+        self.assertEqual(len(self.pocket_search.search(text="france")[0:1]), 1)
+
     def test_search_prefix(self):
         # by default, prefix search is not supported:
         self.assertEqual(self.pocket_search.search(text="fran*").count(), 0)
