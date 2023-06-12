@@ -291,6 +291,14 @@ pocket_search.search(price__gte=3)
 pocket_search.search(price__gte=3,description="apple")
 ```
 
+You can also provide an index for numeric data by setting ...
+
+```Python
+price = Int(index=True)
+```
+
+... to speed up queries.
+
 ## Searching date fields
 
 pocketsearch also provides some (experimental) support for searching dates:
