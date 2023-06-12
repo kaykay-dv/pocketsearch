@@ -335,7 +335,7 @@ pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
 
 When working with search indices that are stored on disk, *it is important to 
 provide the writeable argument*, as any PocketSearch instance that works 
-with file sqlite databases, is in read-only mode be default (unlike their 
+with file sqlite databases, is in read-only mode by default (unlike their 
 in-memory counterpart.). 
 
 # Behind the scenes: how searching works
