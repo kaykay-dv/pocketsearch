@@ -21,8 +21,9 @@ class Wikipedia(pocketsearch.Schema):
     Simple schema for Wikipedia abstracts
     '''
 
-    title = pocketsearch.Text(index=True)
+    title = pocketsearch.Text()
     text = pocketsearch.Text(index=True)
+    document_rank = pocketsearch.Int(index=True)
 
 class WikipediaAbstractSAXParser(xml.sax.ContentHandler):
     '''
@@ -45,12 +46,17 @@ class WikipediaAbstractSAXParser(xml.sax.ContentHandler):
         if self.current_element == "doc":
             self.wiki_page = {
                 "title" : "",
-                "abstract" : ""
+                "abstract" : "",
+                "sublink" : 0
             }
+        if self.current_element == "sublink":
+            self.wiki_page["sublink"]=self.wiki_page["sublink"]+1
 
     def endElement(self, name):  
         if name == "doc":
-            self.index.insert(title=self.wiki_page.get("title"),text=self.wiki_page.get("abstract"))
+            self.index.insert(title=self.wiki_page.get("title"),
+                              document_rank=self.wiki_page.get("sublink"),
+                              text=self.wiki_page.get("title") + " " + self.wiki_page.get("abstract"))
             self.count+=1
             if self.count % 1000 == 0:
                 memory_info = pid.memory_info()

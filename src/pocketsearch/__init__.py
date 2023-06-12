@@ -7,12 +7,11 @@ WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WI
 THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
-import pdb;
-import logging
 import sqlite3
 import os
 import time
 import abc
+import copy
 
 
 class Timer:
@@ -109,7 +108,7 @@ class Field(abc.ABC):
             if self.fts_enabled():
                 return "%s_fts.%s" % (self.schema.name, self.name)
             else:
-                return "%s_.%s" % (self.schema.name, self.name)
+                return "%s.%s" % (self.schema.name, self.name)
         else:
             return "%s.%s" % (self.schema.name, self.name)
 
@@ -117,10 +116,8 @@ class Field(abc.ABC):
         '''
         Returns sql representation of field for SQL table generation.
         '''
-        try:
-            self.data_type
-        except AttributeError as exc:
-            raise AttributeError("class %s (field=%s) has not attribute data_type" % (self.__class__.__name__, self.name)) from exc
+        if self.data_type is None:
+            raise self.schema.SchemaError("class %s (field=%s) has no data_type set" % (self.__class__.__name__, self.name))
         name = self.schema.reverse_lookup[self]
         if index_table:
             _data_type = ""
@@ -684,6 +681,7 @@ class SQLQuery:
             self.v_order_by.clear()
         self.v_order_by.append(OrderBy(field=field, sort_dir=sort_dir, sql_query=self))
 
+
     def limit_and_offset(self, limit, offset):
         '''
         Set limit and offset of query
@@ -748,8 +746,15 @@ class Query:
         self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], "id", "rowid")
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
-        self._defaults_set = True
+        #self._defaults_set = True
+        self._default_order_by_set = True
+        self._default_values_set = True
         self.is_aggregate_query = False
+
+    def _defaults_set(self):
+        # Returns true if any default parameters set for .values and .order_by
+        # clauses have been changed
+        return self._default_order_by_set & self._default_values_set
 
     def count(self):
         '''
@@ -766,7 +771,6 @@ class Query:
         Add order by clauses. To indicate ascending or descending order,
         arguments should start with either "+" or ".".
         '''
-        self._defaults_set = False
         for a in args:
             if a.startswith("+") or a.startswith("-"):
                 field = self.search_instance.schema.get_field(a[1:], raise_exception=True)
@@ -774,7 +778,11 @@ class Query:
             else:
                 field = self.search_instance.schema.get_field(a, raise_exception=True)
                 sort_dir = "+"
-            self.sql_query.order_by(field, sort_dir, clear=True)
+            # If the _defaults_set parameter is True, only the default sort order 
+            # in the constructor has been yet. In that case we clear the order by 
+            # list and set the new order by clause.
+            self.sql_query.order_by(field, sort_dir, clear=self._default_order_by_set)
+            self._default_order_by_set = False
         return self
 
     def _adapt_union_queries(self):
@@ -782,7 +790,6 @@ class Query:
         Re-organizes the structure of the order by
         and limit clauses.
         '''
-        import copy
         if len(self.unions) > 0:
             # Copy order by clause and limit / offsets to the last query in the union
             last_query = self.unions[len(self.unions)-1]
@@ -801,7 +808,7 @@ class Query:
     def __or__(self, obj):
         if not(isinstance(obj, Query)):
             raise self.QueryError("Only instances of class Query can be used with the OR operator.")
-        if not(obj._defaults_set) or not(self._defaults_set):
+        if not(obj._defaults_set()) or not(self._defaults_set()):
             raise self.QueryError("You cannot use .values and .order_by methods in the context of a union.")
         self.unions.append(obj)
         return self
@@ -810,10 +817,11 @@ class Query:
         '''
         Set the values you want to have in the search result list.
         '''
-        self._defaults_set = False
+        self._default_values_set = False
         for a in args:
             field = self.search_instance.schema.get_field(a, raise_exception=True)
-            self.sql_query.select(field)
+            self.sql_query.select(field,clear=self._default_values_set)
+            self._default_values_set = False
         return self
 
     def _build_results(self, results):
@@ -833,7 +841,6 @@ class Query:
             u_stmt, u_ar = query.sql_query.to_sql()
             stmt += " UNION ALL " + u_stmt
             query_args = query_args + u_ar
-        logging.debug(stmt)
         if self.is_aggregate_query:
             count = 0
             for sub_count in self.search_instance.execute_sql(stmt, *query_args):
@@ -1016,7 +1023,7 @@ class PocketSearch:
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
         # create standard indices
         for field in default_index_fields:
-            self.cursor.execute("CREATE INDEX idx_std_{index_name}_%s ON {index_name} ({field});".format(index_name=index_name, field=field))
+            self.cursor.execute("CREATE INDEX idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
 
     def get_arguments(self, kwargs, for_search=True):
         '''

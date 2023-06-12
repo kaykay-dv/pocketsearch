@@ -45,16 +45,22 @@ Hello World !
 From a database perspective, the new document will be immediately available 
 to the search index, as each insert is followed by a database commit.
 
-Be ware that the search methods limits results to 10 by default. Results 
+Be aware that the search methods limits results to 10 by default. Results 
 are ordered by the rank of the search result which is calculated by the 
-FTS extension in sqlite and showing how relevant a document is to a 
-given query. 
+FTS extension in sqlite (see https://www.sqlite.org/fts5.html#the_bm25_function for more details) 
+showing how relevant a document is to a given query. 
 
 The API also supports iteration:
 
 ```Python
 for document in pocket_search.search(text="hello"):
     print(document.text)
+```
+
+There is also supported for slicing:
+
+```Python
+pocket_search.search(text="hello")[1:3]
 ```
 
 ## AND/OR queries
@@ -285,6 +291,14 @@ pocket_search.search(price__gte=3)
 pocket_search.search(price__gte=3,description="apple")
 ```
 
+You can also provide an index for numeric data by setting ...
+
+```Python
+price = Int(index=True)
+```
+
+... to speed up queries.
+
 ## Searching date fields
 
 pocketsearch also provides some (experimental) support for searching dates:
@@ -321,7 +335,7 @@ pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
 
 When working with search indices that are stored on disk, *it is important to 
 provide the writeable argument*, as any PocketSearch instance that works 
-with file sqlite databases, is in read-only mode be default (unlike their 
+with file sqlite databases, is in read-only mode by default (unlike their 
 in-memory counterpart.). 
 
 # Behind the scenes: how searching works
