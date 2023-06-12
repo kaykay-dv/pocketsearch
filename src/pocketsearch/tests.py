@@ -14,6 +14,11 @@ class Movie(Schema):
     title = Text(index=True)
     text = Text(index=True)
 
+class CustomField(Field): 
+    '''
+    Field with no data type provided
+    '''
+    pass
 
 class Page(Schema):
     '''
@@ -40,6 +45,12 @@ class BrokenSchemaUnderscores(Schema):
 
     test__123 = Field()
 
+class SchemaCustomField(Schema):
+    '''
+    Schema using a custom field with no data type
+    '''
+
+    custom_field = CustomField()
 
 class SchemaTest(unittest.TestCase):
     '''
@@ -47,18 +58,34 @@ class SchemaTest(unittest.TestCase):
     '''
 
     def test_create_schema(self):
+        '''
+        Schema creation test
+        '''
         schema = Movie(name="movie")
         for field in ["title", "text"]:
             self.assertEqual(field in schema.fields, True)
 
     def test_use_underscores_in_fields(self):
+        '''
+        Schema creation test with field containing underscores
+        '''
         with self.assertRaises(Schema.SchemaError):
-            BrokenSchemaUnderscores(name="broken")
+            schema = BrokenSchemaUnderscores(name="broken")
 
     def test_use_reserved_keywords(self):
+        '''
+        Schema creation test with field containing keywords
+        '''                
         with self.assertRaises(Schema.SchemaError):
             BrokenSchema(name="broken")
 
+    def test_field_no_data_type(self):
+        '''
+        Schema creation test with field having no data type
+        '''                        
+        schema = SchemaCustomField(name="broken")
+        with self.assertRaises(Schema.SchemaError):
+            schema.custom_field.to_sql()
 
 class BaseTest(unittest.TestCase):
     '''

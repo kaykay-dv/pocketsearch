@@ -116,10 +116,8 @@ class Field(abc.ABC):
         '''
         Returns sql representation of field for SQL table generation.
         '''
-        try:
-            self.data_type
-        except AttributeError as exc:
-            raise AttributeError("class %s (field=%s) has not attribute data_type" % (self.__class__.__name__, self.name)) from exc
+        if self.data_type is None:
+            raise self.schema.SchemaError("class %s (field=%s) has no data_type set" % (self.__class__.__name__, self.name))
         name = self.schema.reverse_lookup[self]
         if index_table:
             _data_type = ""
