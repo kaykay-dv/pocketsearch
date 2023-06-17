@@ -1,5 +1,10 @@
 # Change log
 
+## Version 0.8.0
+* Removed duplicate reference to "rank" in sql queries
+* Added highlight sql function to highlight terms in search results
+* Added snippet sql function to extract snippets from search results
+
 ## Version 0.7.1
 * Fixed broken non-FTS index generation
 * Fixed problem when multiple order_by fields are declared

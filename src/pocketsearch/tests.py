@@ -102,6 +102,46 @@ class BaseTest(unittest.TestCase):
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
+class SQLFunctionTests(BaseTest):
+
+    def test_highlight(self):
+        self.assertEqual("*fox*" in self.pocket_search.search(text="fox").highlight("text")[0].text,True)
+
+    def test_highlight_alternative_marker(self):
+        self.assertEqual("<b>fox</b>" in self.pocket_search.search(text="fox").highlight("text",marker_start="<b>",marker_end="</b>")[0].text,True)
+
+    def test_snippet(self):
+        text = '''
+        In computer science, an inverted index (also referred to as a postings list, postings file, or inverted file) is a 
+        database index storing a mapping from content, such as words or numbers, to its locations in a table, or in a 
+        document or a set of documents (named in contrast to a forward index, which maps from documents to content).
+        The purpose of an inverted index is to allow fast full-text searches, at a cost of increased processing when a 
+        document is added to the database.[2] The inverted file may be the database file itself, rather than its index. 
+        It is the most popular data structure used in document retrieval systems,[3] used on a large scale for example in search engines.
+        '''
+        self.pocket_search.insert(text=text)
+        result = self.pocket_search.search(text="forward index").snippet("text")[0].text
+        eq = self.assertEqual
+        eq("*forward*" in result,True)
+        eq("*index*" in result,True)
+        # Test alternative before/after text
+        result = self.pocket_search.search(text="forward index").snippet("text",text_before="<b>",text_after="</b>")[0].text
+        eq("<b>forward</b>" in result , True)
+        eq("<b>index</b>" in result , True)
+
+    def test_snippet_length_too_big(self):
+        '''
+        Snippets may not exceed 64 tokens
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(text="forward index").snippet("text",snippet_length=128)
+
+    def test_snippet_length_too_small(self):
+        '''
+        Snippets must have at least 1 token
+        '''        
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(text="forward index").snippet("text",snippet_length=0)        
 
 class OperatorSearch(BaseTest):
     '''
@@ -399,14 +439,10 @@ class MultipleFieldRankingtest(unittest.TestCase):
         #results = self.pocket_search.search(text="C",title="C",category="C").order_by("title")
         # self.assertEqual(results[0].title,"A")
 
-    def test_rank_multiple_field_or_query(self):
-        pass
-
 
 class StemmingTests(unittest.TestCase):
 
     def setUp(self):
-        # Data taken from Wikipedia (also using some special characters)
         self.data = [
             "Tests need to be performed on a regular basis.",
             "Die Anforderungen müssen genau definiert sein."
@@ -475,6 +511,22 @@ class FieldTypeTests(unittest.TestCase):
                                   f5=datetime.datetime.now(),
                                   f6=datetime.date.today())
 
+    def test_apply_highlight_to_non_fts_field(self):
+        '''
+        When the highlight function is applied to non-FTS
+        field, a query error should be raised:
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(f1=32).highlight("f1")
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(f1=32).highlight("f3")
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(f1=32).highlight("f4")
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(f1=32).highlight("f5")
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.search(f1=32).highlight("f6")
+
     def test_create(self):
         result = self.pocket_search.search(id=1)
         self.assertEqual(type(result[0].f6), datetime.date)
@@ -513,6 +565,7 @@ class StructuredDataTests(unittest.TestCase):
             ("Banana", 6, "Fruit"),
         ]:
             self.pocket_search.insert(description=product, price=price, category=category)
+
 
     def test_filter_numeric_values_equal(self):
         self.assertEqual(self.pocket_search.search(price=3).count(), 1)
