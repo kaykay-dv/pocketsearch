@@ -251,9 +251,11 @@ class Schema:
         self._meta = self.Meta()
         self.name = name
         self.fields = {}
+        self.field_index = {} # required by some SQL functions, e.g. highlight
         self.fields_with_default = {}
         self.reverse_lookup = {}
         self.id_field = None
+        field_index=0
         for elem in dir(self):
             obj = getattr(self, elem)
             if isinstance(obj, Field):
@@ -271,6 +273,9 @@ class Schema:
                     if self.id_field is not None:
                         raise self.SchemaError("You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
                     self.id_field = obj.name
+                if obj.fts_enabled():
+                    self.field_index[obj.name]=field_index
+                    field_index+=1
 
         for field in self:
             if field.default is not None:
@@ -355,15 +360,55 @@ class SQLQueryComponent(abc.ABC):
         '''
         raise NotImplementedError()
 
+class Function:
+    '''
+    SQL function applied to fields in the select part 
+    of the query
+    '''
+
+class Highlight(Function):
+    '''
+    Highlight SQL function
+    '''
+
+    def __init__(self,marker_start,marker_end):
+        self.marker_start = marker_start
+        self.marker_end = marker_end
+
+    def to_sql(self,field):
+        return "highlight({table}_fts, {index}, '{m_start}', '{m_end}') as {field}".format(field=field.name,
+                                                                                     table=field.schema.name,
+                                                                                     index=field.schema.field_index[field.name],
+                                                                                     m_start=self.marker_start,
+                                                                                     m_end=self.marker_end)
+
+class Snippet(Function):
+    '''
+    Snippet SQL function
+    '''
+
+    def __init__(self,text_before,text_after,snippet_length=16):
+        self.text_before = text_before
+        self.text_after = text_after
+        self.snippet_length=snippet_length
+
+    def to_sql(self,field):
+        return "snippet({table}_fts, {index}, '{t_before}', '{t_after}','...',{l}) as {field}".format(field=field.name,
+                                                                                     table=field.schema.name,
+                                                                                     index=field.schema.field_index[field.name],
+                                                                                     t_before=self.text_before,
+                                                                                     l=self.snippet_length,
+                                                                                     t_after=self.text_after)
 
 class Select(SQLQueryComponent):
     '''
     A single field selected in the query.
     '''
 
-    def __init__(self, field, sql_query):
+    def __init__(self, field, sql_query,function=None):
         super().__init__(sql_query)
         self.field = field
+        self.function = function
 
     def to_sql(self):
         if type(self.field) is str:
@@ -373,7 +418,9 @@ class Select(SQLQueryComponent):
                 return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
             elif isinstance(self.field, Datetime):
                 return "{full_name} as \"{name} [timestamp]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
-        return self.field.get_full_qualified_name()
+        if self.function is None:
+            return self.field.get_full_qualified_name()
+        return self.function.to_sql(self.field)
 
 
 class Count(SQLQueryComponent):
@@ -634,6 +681,22 @@ class SQLQuery:
             self.v_select.clear()
         self.v_select.append(Select(field=field, sql_query=self))
 
+    def highlight(self,field,marker_start,marker_end):
+        '''
+        Marks given field for highlightening results
+        '''
+        for select in self.v_select:
+            if select.field.name == field.name:
+                select.function = Highlight(marker_start=marker_start,marker_end=marker_end)
+
+    def snippet(self,field,text_before,text_after,snippet_length=16):
+        '''
+        Marks given field for extracting snippets
+        '''
+        for select in self.v_select:
+            if select.field.name == field.name:
+                select.function = Snippet(text_before=text_before,text_after=text_after,snippet_length=snippet_length)        
+
     def table(self, table_name, clear=False):
         '''
         Adds a reference to the from clause in the SQL statement.
@@ -740,7 +803,7 @@ class Query:
         for argument in arguments.values():
             for lookup in argument.lookups:
                 self.sql_query.where(field=argument.field, lookup=lookup)
-        self.sql_query.select("rank")
+        #self.sql_query.select("rank")
         self.sql_query.table(table_name=self.search_instance.schema.name)
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name)
         self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], "id", "rowid")
@@ -822,6 +885,30 @@ class Query:
             field = self.search_instance.schema.get_field(a, raise_exception=True)
             self.sql_query.select(field,clear=self._default_values_set)
             self._default_values_set = False
+        return self
+
+    def highlight(self,*args,marker_start="*",marker_end="*"):
+        '''
+        Marks given field for highlight
+        '''
+        for a in args:
+            field_obj = self.search_instance.schema.get_field(a, raise_exception=True)
+            if not(field_obj.fts_enabled()):
+                raise self.QueryError("highlight can only be applied to Text fields with index set to True.")
+            self.sql_query.highlight(field_obj,marker_start=marker_start,marker_end=marker_end)
+        return self
+
+    def snippet(self,*args,text_before="*",text_after="*",snippet_length=16):
+        '''
+        Marks given field for snippet
+        '''
+        if snippet_length <=0 or snippet_length >=64:
+            raise self.QueryError("snippet_length must be greater than 0 and lesser than 64.")
+        for a in args:
+            field_obj = self.search_instance.schema.get_field(a, raise_exception=True)
+            if not(field_obj.fts_enabled()):
+                raise self.QueryError("snippet can only be applied to Text fields with index set to True.")
+            self.sql_query.snippet(field_obj,text_before=text_before,text_after=text_after,snippet_length=snippet_length)
         return self
 
     def _build_results(self, results):
