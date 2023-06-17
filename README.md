@@ -149,7 +149,8 @@ pocket_search.search(text="hello").highlight("text",marker_start="[",marker_end=
 The positional arguments of the highlight method represent the fields you want to hightlight. 
 
 If you have very long text, you might want to only show a snippet with all terms found in your +
-search results. This can be done with the snippet method:
+search results. This can be done with the snippet method. Assuming we have the article 
+on inverted indices (https://en.wikipedia.org/wiki/Inverted_index) in our database we can extract snippets like this:
 
 ```Python
 pocket_search.search(text="inverted file").snippet("text",snippet_length=16)[0].text
