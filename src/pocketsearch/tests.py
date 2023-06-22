@@ -160,6 +160,17 @@ class OperatorSearch(BaseTest):
         # by default, prefix search is not supported:
         self.assertEqual(self.pocket_search.search(text__allow_prefix="fran*").count(), 1)
 
+    def test_initial_token_queries_implicit(self):
+        self.pocket_search.insert(text="Paris is not the capital of england.")
+        # in this case, the ^ operator will be ignored and 2 matches found:
+        self.assertEqual(self.pocket_search.search(text="^england").count(), 2)
+
+    def test_initial_token_queries_explicit(self):
+        self.pocket_search.insert(text="Paris is not the capital of england.")
+        # search for results where england can be found at the begining:
+        self.assertEqual(self.pocket_search.search(text__allow_initial_token="^england").count(), 1)
+        self.assertEqual(self.pocket_search.search(text__allow_initial_token__allow_prefix="^engl*").count(),1)
+
     def test_search_and_or_query_default(self):
         # by default, AND/OR queries are not supported:
         self.assertEqual(self.pocket_search.search(text='france AND paris').count(), 0)

@@ -449,6 +449,7 @@ LU_EQ = "eq"
 LU_BOOL = "allow_boolean"
 LU_NEG = "allow_negation"
 LU_PREFIX = "allow_prefix"
+LU_INITIAL_TOKEN = "allow_initial_token"
 LU_GTE = "gte"
 LU_LTE = "lte"
 LU_GT = "gt"
@@ -464,6 +465,7 @@ LOOKUPS = {
     LU_BOOL: [Text],
     LU_NEG: [Text],
     LU_PREFIX: [Text],
+    LU_INITIAL_TOKEN: [Text],
     LU_GTE: [Int],
     LU_LTE: [Int],
     LU_GT: [Int],
@@ -491,13 +493,15 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = ["-", ".", "^"]
+        self.operators = ["-", "."]
         if not(LU_BOOL in lookup.names):
             self.keywords = self.keywords + ["AND", "OR"]
         if not(LU_NEG in lookup.names):
             self.keywords.append("NOT")
         if not(LU_PREFIX in lookup.names):
             self.operators.append("*")
+        if not(LU_INITIAL_TOKEN in lookup.names):
+            self.operators.append("^")
 
 
 class MatchFilter(Filter):
@@ -1134,7 +1138,7 @@ class PocketSearch:
             for lookup in lookups:
                 for name in lookup.names:
                     if not(name) in LOOKUPS:
-                        raise self.FieldError("Unknown lookup: '%s' in %s" % (lookup, f))
+                        raise self.FieldError("Unknown lookup: '%s' in field '%s'" % (name, f))
         arguments = {}
         for field in self.schema:
             if field.name not in referenced_fields and not(for_search) and field.name not in ["id", "rank"]:

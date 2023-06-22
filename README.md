@@ -98,6 +98,17 @@ providing the allow_prefix lookup:
 print(pocket_search.search(text__allow_prefix="hel*")[0].text)
 ```
 
+## Initial token queries
+
+If you want to search only the first token at the begining of a field, use the 
+allow_initial_token lookup:
+
+```Python
+pocket_search.search(text__allow_initial_token="^hello")
+```
+
+This will only match results that have 'hello' at the very beginning. 
+
 ## Phrase queries
 
 If you want to search for phrases, use quotation marks:
