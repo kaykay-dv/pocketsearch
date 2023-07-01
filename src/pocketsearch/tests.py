@@ -189,6 +189,73 @@ class OperatorSearch(BaseTest):
         # By default, negation is not supported
         self.assertEqual(self.pocket_search.search(text="NOT france").count(), 0)
 
+class PrefixIndexTest(unittest.TestCase):
+    '''
+    Test creation of prefix indices
+    '''
+
+    class PrefixIndex1(Schema):
+        '''
+        Simple schema that sets a prefix index for 
+        2,3 and 4 characters
+        '''
+        class Meta:
+            prefix_index=[2,3,4]
+        body = Text(index=True)
+
+    class PrefixIndex2(Schema):
+        '''
+        Prefix index definition with negative numbers
+        '''
+        class Meta:
+            prefix_index=[2,-3,4]
+        body = Text(index=True)
+
+    class PrefixIndex3(Schema):
+        '''
+        Prefix index definition, wrong data type
+        '''
+        class Meta:
+            prefix_index="2,3,4"
+
+        body = Text(index=True)
+
+    class PrefixIndex4(Schema):
+        '''
+        Prefix index definition with duplicate values
+        '''
+        class Meta:
+            prefix_index=[2,2,4]
+        body = Text(index=True)        
+
+    class PrefixIndex5(Schema):
+        '''
+        Prefix index definition with duplicate values
+        '''
+        class Meta:
+            prefix_index=[0,1]
+        body = Text(index=True)  
+
+    class PrefixIndex6(Schema):
+        '''
+        Prefix index definition with non-integer values
+        '''
+        class Meta:
+            prefix_index=["0",1]
+        body = Text(index=True) 
+
+    def test_create_prefix_index(self):
+        '''
+        Test creation of prefix index
+        '''
+        PocketSearch(schema=self.PrefixIndex1)
+        with self.assertRaises(Schema.SchemaError):
+            PocketSearch(schema=self.PrefixIndex2)
+        with self.assertRaises(Schema.SchemaError):            
+            PocketSearch(schema=self.PrefixIndex3)
+        PocketSearch(schema=self.PrefixIndex4)
+        with self.assertRaises(Schema.SchemaError):
+            PocketSearch(schema=self.PrefixIndex6)
 
 class PhraseSearch(unittest.TestCase):
 

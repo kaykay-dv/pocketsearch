@@ -1,9 +1,9 @@
 # pocketsearch
 pocketsearch is a pure-Python full text indexing search engine based on sqlite and the FTS5 extension. It provides
 
-- Support for full text search
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
 - Support for multi-field indices including text, numeric and date search
+- Support for prefix and initial token queries
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
@@ -98,9 +98,13 @@ providing the allow_prefix lookup:
 print(pocket_search.search(text__allow_prefix="hel*")[0].text)
 ```
 
+Please note, that prefix queries might get very slow as the index grows. To 
+optimize performance, you can use prefix indices as described in the chapter 
+on "schemas" in this README.
+
 ## Initial token queries
 
-If you want to search only the first token at the begining of a field, use the 
+If you want to search only the first token at the begining of a document, use the 
 allow_initial_token lookup:
 
 ```Python
@@ -245,6 +249,22 @@ for result in q:
 The result will contain all documents containing either "world" or where the filename is "a.text".
 
 This option is currently experimental and still has issues, espcially when accessing results through indexing. 
+
+## Setting prefix indices
+To speed up prefix queries, you can setup prefix indices:
+
+```Python
+    class PrefixIndex1(Schema):
+        '''
+        Simple schema that sets a prefix index for 
+        2,3 and 4 characters
+        '''
+        class Meta:
+            prefix_index=[2,3,4]
+        body = Text(index=True)
+```
+
+This will create prefix indices for 2,3 and 4 character prefixes.
 
 # Inserting, updating and deleting data
 

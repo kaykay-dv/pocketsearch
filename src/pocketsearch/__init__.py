@@ -226,6 +226,7 @@ class Schema:
         sqlite_categories = None
         sqlite_tokenchars = None
         sqlite_separators = None
+        prefix_index = None
 
     RESERVED_KEYWORDS = [
         'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
@@ -1043,6 +1044,7 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
+        print(sql,args)
         return self.cursor.execute(sql, args)
 
     def _format_sql(self, index_name, fields, sql):
@@ -1070,6 +1072,18 @@ class PocketSearch:
             return ""
         return "," + ",".join(options)
 
+    def _create_prefix_index(self):
+        prefix_index = self.schema._meta.prefix_index
+        if prefix_index is not None:
+            if not(isinstance(prefix_index,list)):
+                raise self.schema.SchemaError("prefix_index must be list containing positive integer values")
+            if not(all(isinstance(item, int) and item > 0 for item in prefix_index)):
+                raise self.schema.SchemaError("prefix_index list should only contain positive integer values.")
+            # eliminate duplicates
+            prefix_index = set(prefix_index)
+            return ", prefix='{prefix_index}'".format(prefix_index=" ".join(str(item) for item in prefix_index))
+        return ""
+
     def _create_table(self, index_name):
         '''
         Private method to create the SQL tables used by the index.
@@ -1085,13 +1099,13 @@ class PocketSearch:
                     default_index_fields.append(field)
                 fields.append(field)
         if len(index_fields) == 0:
-            raise IndexError("Schema does not have a single indexable field.")
+            raise IndexError("Schema does not have a single indexable FTS field.")
         sql_table = '''
         CREATE TABLE IF NOT EXISTS %s(%s)
         ''' % (index_name, ", ".join([field.to_sql() for field in fields]))
         sql_virtual_table = '''
-        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s);
-        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options())
+        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s %s);
+        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options(), self._create_prefix_index())
         # Trigger definitions:
         sql_trigger_insert = '''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN

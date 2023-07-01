@@ -3,7 +3,7 @@
 ## 0.9.0
 * Improved error error message when using unknown lookups
 * Introduced initial token queries using the allow_initial_token (^) lookup.
-* Added prefix indicies
+* Added prefix indicies (https://www.sqlite.org/fts5.html#prefix_indexes)
 
 ## Version 0.8.0
 * Removed duplicate reference to "rank" in sql queries
