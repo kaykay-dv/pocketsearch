@@ -240,7 +240,7 @@ pocket_search.search(text="world",filename="a.txt")
 
 ### AND/OR queries on multiple fields
 
-Similar to the Django web framework, you can use "Q Objects" to express OR queries:
+Similar to the Django web framework, you can use "Q Objects" to express OR queries on multiple fields:
 
 ```Python
 from pocketsearch import Q
@@ -248,6 +248,14 @@ from pocketsearch import Q
 q = pocket_search.search(Q(text="world") | Q(filename="a.txt"))
 # Search for documents where text="world" AND filename="a.txt"
 q = pocket_search.search(Q(text="world") & Q(filename="a.txt"))
+```
+
+Please note, that you either have to use one notation or the other. You cannot mix 
+Q objects with keyword arguments:
+
+```Python
+# This will NOT work:
+pocket_search.search(Q(text="world") , filename="a.txt")
 ```
 
 ## Setting prefix indices

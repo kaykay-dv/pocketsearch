@@ -401,6 +401,10 @@ class QTests(unittest.TestCase):
         q = self.pocketsearch.search(Q(price__gte=1) & Q(price__lte=5) & Q(product="Apple") | Q(product="Orange"))
         self.assertEqual(q.count(),2)
 
+    def test_mixed_q_query(self):
+        with self.assertRaises(Query.QueryError):
+            self.pocketsearch.search(Q(price__gte=1) & Q(price__lte=5), product="apple")
+
 class IDFieldTest(unittest.TestCase):
 
     class IdSchema(Schema):
