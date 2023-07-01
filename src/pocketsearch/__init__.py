@@ -885,11 +885,13 @@ class Query:
         '''
         Set the values you want to have in the search result list.
         '''
-        self._default_values_set = False
         for a in args:
             field = self.search_instance.schema.get_field(a, raise_exception=True)
             self.sql_query.select(field,clear=self._default_values_set)
             self._default_values_set = False
+        # Propagate this to union queries as well:
+        for query in self.unions:
+            query.values(*args)
         return self
 
     def highlight(self,*args,marker_start="*",marker_end="*"):
@@ -1044,7 +1046,6 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
-        print(sql,args)
         return self.cursor.execute(sql, args)
 
     def _format_sql(self, index_name, fields, sql):

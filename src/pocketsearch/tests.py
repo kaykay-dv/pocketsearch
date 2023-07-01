@@ -383,6 +383,11 @@ class IndexTest(BaseTest):
         q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
         self.assertEqual(q1.count(), 2)
 
+    def test_combine_search_results_using_values(self):
+        # This is a correct query:
+        q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
+        self.assertEqual(q1.values("id","text","rank").count(),2)
+
     def test_order_by_override_default_order_by(self):
         # This should override the default rank sorting by the text sorting
         r = self.pocket_search.search(text="is").values("id", "rank", "text").order_by("-text")
