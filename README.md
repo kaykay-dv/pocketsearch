@@ -236,19 +236,16 @@ pocket_search.search(text="world")
 pocket_search.search(text="world",filename="a.txt")
 ```
 
-> **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND. Currently, there is no way to express OR queries in the .search method.
+> **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND.
 
-However, you can join 2 queries (resulting in a UNION statement in SQL):
+Similar to the Django web framework, you can use "Q Objects" to express OR queries:
 
 ```Python
-q = pocket_search.search(text="world") | pocket_search.search(filename="a.txt")
-for result in q:
-    print(result.text)
+# Search for documents where text="world" OR filename="a.txt"
+q = pocket_search.search(Q(text="world") | Q(filename="a.txt"))
+# Search for documents where text="world" AND filename="a.txt"
+q = pocket_search.search(Q(text="world") & Q(filename="a.txt"))
 ```
-
-The result will contain all documents containing either "world" or where the filename is "a.text".
-
-This option is currently experimental and still has issues, espcially when accessing results through indexing. 
 
 ## Setting prefix indices
 To speed up prefix queries, you can setup prefix indices:

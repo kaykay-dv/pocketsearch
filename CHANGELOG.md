@@ -1,9 +1,11 @@
 # Change log
 
 ## 0.9.0
-* Improved error error message when using unknown lookups
+* Introduced Q objects for AND/OR queries
 * Introduced initial token queries using the allow_initial_token (^) lookup.
 * Added prefix indicies (https://www.sqlite.org/fts5.html#prefix_indexes)
+* Improved error error message when using unknown lookups
+* Combining .search methods through the | operator is now DEPRECATED. (and will be removed in 1.0.0)
 
 ## Version 0.8.0
 * Removed duplicate reference to "rank" in sql queries
