@@ -10,7 +10,7 @@
 
 **Deprecated**:
 
-* Combining .search methods (union queries) through the | operator is now DEPRECATED. (and will be removed in 1.0.0) - Initially it was provided as means to express AND/OR queries, however Q objects can be used instead now.
+* Combining .search methods (union queries) through the | operator is now DEPRECATED. (and will be removed in 1.0.0) - Initially it was provided as means to express AND/OR queries, however Q objects can be used instead now. 
 
 ## Version 0.8.0
 * Removed duplicate reference to "rank" in sql queries
