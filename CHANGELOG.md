@@ -5,7 +5,7 @@
 * Introduced initial token queries using the allow_initial_token (^) lookup.
 * Added prefix indicies (https://www.sqlite.org/fts5.html#prefix_indexes)
 * Changed the way queries are done against the FTS index. Rather than using column-based queries, we now use the <table_name> MATCH 'field:search' syntax.
-* Improved error error message when using unknown lookups
+* Improved error message when using unknown lookups
 
 **Deprecated**:
 
