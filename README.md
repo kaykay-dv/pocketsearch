@@ -238,6 +238,8 @@ pocket_search.search(text="world",filename="a.txt")
 
 > **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND.
 
+### AND/OR queries on multiple fields
+
 Similar to the Django web framework, you can use "Q Objects" to express OR queries:
 
 ```Python
