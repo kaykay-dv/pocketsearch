@@ -383,6 +383,12 @@ class QTests(unittest.TestCase):
         ]:
             self.pocketsearch.insert(code=code,product=name,price=price)
 
+    def test_phrase_query(self):
+        q = self.pocketsearch.search(Q(product='"apple and orange"'))
+        self.assertEqual(q.count(),1)        
+        q = self.pocketsearch.search(Q(product='orange and apple'))
+        self.assertEqual(q.count(),1)        
+
     def test_and(self):
         q = self.pocketsearch.search(Q(product="Apple") & Q(code__allow_prefix="A*") & Q(price__gte=2))
         self.assertEqual(q.count(),1)
