@@ -389,6 +389,11 @@ class QTests(unittest.TestCase):
         q = self.pocketsearch.search(Q(product='orange and apple'))
         self.assertEqual(q.count(),1)        
 
+    def test_initial_token_query(self):
+        # This should only bring one result back:
+        q = self.pocketsearch.search(Q(price__gte=3) & Q(product__allow_initial_token="^Orange"))
+        self.assertEqual(q.count(),1)
+
     def test_and(self):
         q = self.pocketsearch.search(Q(product="Apple") & Q(code__allow_prefix="A*") & Q(price__gte=2))
         self.assertEqual(q.count(),1)
