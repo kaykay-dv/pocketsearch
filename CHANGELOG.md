@@ -1,11 +1,14 @@
 # Change log
 
-## 0.9.0
+## Version 0.9.0
 * Introduced Q objects for AND/OR queries
 * Introduced initial token queries using the allow_initial_token (^) lookup.
 * Added prefix indicies (https://www.sqlite.org/fts5.html#prefix_indexes)
 * Changed the way queries are done against the FTS index. Rather than using column-based queries, we now use the <table_name> MATCH 'field:search' syntax.
 * Improved error error message when using unknown lookups
+
+**Deprecated**:
+
 * Combining .search methods through the | operator is now DEPRECATED. (and will be removed in 1.0.0)
 
 ## Version 0.8.0
