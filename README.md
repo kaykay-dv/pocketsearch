@@ -215,15 +215,19 @@ Following fields are available:
 
 Following options are available for fields:
 
-* index - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
-* is_id_field - a schema can only have one IDField. It is used by the .insert_or_update method to decide if a document should be inserted or an existing document should be updated.
+* **index** - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
+* **is_id_field** - a schema can only have one IDField. It is used by the .insert_or_update method to decide if a document should be inserted or an existing document should be updated.
 
 With respect to naming your fields following restrictions apply:
 
 * Fields may not start with an underscore.
 * Fields may not contain double underscores.
 
+Moreover field names may not be composed of reserved SQL keywords.
+
 > **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document.
+
+## Queries on multi-field indices
 
 Once the schema is created, you can query multiple fields:
 
