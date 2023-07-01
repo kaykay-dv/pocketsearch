@@ -405,6 +405,10 @@ class QTests(unittest.TestCase):
         with self.assertRaises(Query.QueryError):
             self.pocketsearch.search(Q(price__gte=1) & Q(price__lte=5), product="apple")
 
+    def test_q_objects_multiple_kw_arguments(self):
+        with self.assertRaises(Query.QueryError):
+            self.pocketsearch.search(Q(price__gte=1,price__lte=5))
+
 class IDFieldTest(unittest.TestCase):
 
     class IdSchema(Schema):

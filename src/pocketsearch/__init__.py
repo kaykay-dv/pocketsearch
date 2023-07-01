@@ -839,7 +839,7 @@ class QExpr:
 
     def __init__(self,**kwargs):
         if len(kwargs)>1:
-            raise ValueError("Only one keyword argument allowed in Q objects.")
+            raise Query.QueryError("Only one keyword argument allowed in Q objects.")
         self.kwargs=kwargs
         self.operator=None
 

@@ -251,12 +251,15 @@ q = pocket_search.search(Q(text="world") & Q(filename="a.txt"))
 ```
 
 Please note, that you either have to use one notation or the other. You cannot mix 
-Q objects with keyword arguments:
+Q objects with keyword arguments and you can only provide one field per Q object:
 
 ```Python
 # This will NOT work:
 pocket_search.search(Q(text="world") , filename="a.txt")
+# This will work neither:
+pocket_search.search(Q(text="world",filename="a.txt"))
 ```
+
 
 ## Setting prefix indices
 To speed up prefix queries, you can setup prefix indices:
