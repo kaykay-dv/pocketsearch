@@ -241,6 +241,7 @@ pocket_search.search(text="world",filename="a.txt")
 Similar to the Django web framework, you can use "Q Objects" to express OR queries:
 
 ```Python
+from pocketsearch import Q
 # Search for documents where text="world" OR filename="a.txt"
 q = pocket_search.search(Q(text="world") | Q(filename="a.txt"))
 # Search for documents where text="world" AND filename="a.txt"
