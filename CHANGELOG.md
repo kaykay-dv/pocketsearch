@@ -3,7 +3,7 @@
 ## Version 0.9.0
 * Introduced Q objects for AND/OR queries
 * Introduced initial token queries using the allow_initial_token (^) lookup.
-* Added prefix indicies (https://www.sqlite.org/fts5.html#prefix_indexes)
+* Added prefix indices (https://www.sqlite.org/fts5.html#prefix_indexes)
 * Changed the way queries are done against the FTS index. Rather than using column-based queries, we now use the <table_name> MATCH 'fieldname:query' syntax.
 * Improved error message when using unknown lookups
 * Retired tests for "union" queries

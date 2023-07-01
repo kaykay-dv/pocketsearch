@@ -453,9 +453,9 @@ class FileContents(Schema):
     filename = Text(is_id_field=True)
 ```
 
-# Multiple indicies in one database
+# Multiple indices in one database
 
-You can have multiple indicies in one database (only databases written to disk) by setting 
+You can have multiple indices in one database (only databases written to disk) by setting 
 the "index_name" option:
 
 ```Python
