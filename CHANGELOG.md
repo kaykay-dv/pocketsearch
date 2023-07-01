@@ -1,5 +1,17 @@
 # Change log
 
+## Version 0.9.0
+* Introduced Q objects for AND/OR queries
+* Introduced initial token queries using the allow_initial_token (^) lookup.
+* Added prefix indices (https://www.sqlite.org/fts5.html#prefix_indexes)
+* Changed the way queries are done against the FTS index. Rather than using column-based queries, we now use the <table_name> MATCH 'fieldname:query' syntax.
+* Improved error message when using unknown lookups
+* Retired tests for "union" queries
+
+**Deprecated**:
+
+* Combining .search methods (union queries) through the | operator is now DEPRECATED. (and will be removed in 1.0.0) - Initially it was provided as means to express AND/OR queries, however Q objects can be used instead now. 
+
 ## Version 0.8.0
 * Removed duplicate reference to "rank" in sql queries
 * Added highlight sql function to highlight terms in search results

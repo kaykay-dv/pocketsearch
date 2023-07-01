@@ -3,7 +3,7 @@ import unittest
 import tempfile
 import datetime
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField
+from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField, Q
 
 
 class Movie(Schema):
@@ -160,6 +160,17 @@ class OperatorSearch(BaseTest):
         # by default, prefix search is not supported:
         self.assertEqual(self.pocket_search.search(text__allow_prefix="fran*").count(), 1)
 
+    def test_initial_token_queries_implicit(self):
+        self.pocket_search.insert(text="Paris is not the capital of england.")
+        # in this case, the ^ operator will be ignored and 2 matches found:
+        self.assertEqual(self.pocket_search.search(text="^england").count(), 2)
+
+    def test_initial_token_queries_explicit(self):
+        self.pocket_search.insert(text="Paris is not the capital of england.")
+        # search for results where england can be found at the begining:
+        self.assertEqual(self.pocket_search.search(text__allow_initial_token="^england").count(), 1)
+        self.assertEqual(self.pocket_search.search(text__allow_initial_token__allow_prefix="^engl*").count(),1)
+
     def test_search_and_or_query_default(self):
         # by default, AND/OR queries are not supported:
         self.assertEqual(self.pocket_search.search(text='france AND paris').count(), 0)
@@ -178,6 +189,73 @@ class OperatorSearch(BaseTest):
         # By default, negation is not supported
         self.assertEqual(self.pocket_search.search(text="NOT france").count(), 0)
 
+class PrefixIndexTest(unittest.TestCase):
+    '''
+    Test creation of prefix indices
+    '''
+
+    class PrefixIndex1(Schema):
+        '''
+        Simple schema that sets a prefix index for 
+        2,3 and 4 characters
+        '''
+        class Meta:
+            prefix_index=[2,3,4]
+        body = Text(index=True)
+
+    class PrefixIndex2(Schema):
+        '''
+        Prefix index definition with negative numbers
+        '''
+        class Meta:
+            prefix_index=[2,-3,4]
+        body = Text(index=True)
+
+    class PrefixIndex3(Schema):
+        '''
+        Prefix index definition, wrong data type
+        '''
+        class Meta:
+            prefix_index="2,3,4"
+
+        body = Text(index=True)
+
+    class PrefixIndex4(Schema):
+        '''
+        Prefix index definition with duplicate values
+        '''
+        class Meta:
+            prefix_index=[2,2,4]
+        body = Text(index=True)        
+
+    class PrefixIndex5(Schema):
+        '''
+        Prefix index definition with duplicate values
+        '''
+        class Meta:
+            prefix_index=[0,1]
+        body = Text(index=True)  
+
+    class PrefixIndex6(Schema):
+        '''
+        Prefix index definition with non-integer values
+        '''
+        class Meta:
+            prefix_index=["0",1]
+        body = Text(index=True) 
+
+    def test_create_prefix_index(self):
+        '''
+        Test creation of prefix index
+        '''
+        PocketSearch(schema=self.PrefixIndex1)
+        with self.assertRaises(Schema.SchemaError):
+            PocketSearch(schema=self.PrefixIndex2)
+        with self.assertRaises(Schema.SchemaError):            
+            PocketSearch(schema=self.PrefixIndex3)
+        PocketSearch(schema=self.PrefixIndex4)
+        with self.assertRaises(Schema.SchemaError):
+            PocketSearch(schema=self.PrefixIndex6)
 
 class PhraseSearch(unittest.TestCase):
 
@@ -273,38 +351,6 @@ class IndexTest(BaseTest):
         for idx, item in enumerate(self.pocket_search.search(text="is")):
             item.text  # just check, if it possible to call the attribute
 
-    def test_combine_search_results_1(self):
-        '''
-        These are all invalid queries. When we perform
-        a union order by or value arguments cannot be
-        provided. UC: order_by in second query
-        '''
-        with self.assertRaises(Query.QueryError):
-            q = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england").order_by("rank")
-
-    def test_combine_search_results_2(self):
-        '''
-        These are all invalid queries. When we perform
-        a union order by or value arguments cannot be
-        provided. UC: order_by in first query
-        '''
-        with self.assertRaises(Query.QueryError):
-            q = self.pocket_search.search(text="paris").order_by("rank") | self.pocket_search.search(text="england")
-
-    def test_combine_search_results_3(self):
-        '''
-        These are all invalid queries. When we perform
-        a union order by or value arguments cannot be
-        provided.  UC: values in both queries
-        '''        
-        with self.assertRaises(Query.QueryError):
-            q = self.pocket_search.search(text="paris").values("id") | self.pocket_search.search(text="paris").values("id")
-
-    def test_combine_search_results(self):
-        # This is a correct query:
-        q1 = self.pocket_search.search(text="paris") | self.pocket_search.search(text="england")
-        self.assertEqual(q1.count(), 2)
-
     def test_order_by_override_default_order_by(self):
         # This should override the default rank sorting by the text sorting
         r = self.pocket_search.search(text="is").values("id", "rank", "text").order_by("-text")
@@ -312,6 +358,67 @@ class IndexTest(BaseTest):
         self.assertEqual(r[1].text, self.data[2])
         self.assertEqual(r[2].text, self.data[1])
 
+class QTests(unittest.TestCase):
+    '''
+    Tests the behavior of the Q operator
+    '''
+
+    class Product(Schema):
+        '''
+        Schema with Two-field FTS index
+        '''
+        code = Text(index=True)
+        product = Text(index=True)
+        price = Int()
+
+    def setUp(self):
+        self.pocketsearch = PocketSearch(schema=self.Product)
+        for code,name,price in [
+            ("A01","Apple",4),
+            ("A02","Peach",7),
+            ("A03","Orange",8),
+            ("B01","Grapefruit",5),
+            ("B02","Banana",9),
+            ("C01","Apple and Orange",3),            
+        ]:
+            self.pocketsearch.insert(code=code,product=name,price=price)
+
+    def test_phrase_query(self):
+        q = self.pocketsearch.search(Q(product='"apple and orange"'))
+        self.assertEqual(q.count(),1)        
+        q = self.pocketsearch.search(Q(product='orange and apple'))
+        self.assertEqual(q.count(),1)        
+
+    def test_initial_token_query(self):
+        # This should only bring one result back:
+        q = self.pocketsearch.search(Q(price__gte=3) & Q(product__allow_initial_token="^Orange"))
+        self.assertEqual(q.count(),1)
+
+    def test_and(self):
+        q = self.pocketsearch.search(Q(product="Apple") & Q(code__allow_prefix="A*") & Q(price__gte=2))
+        self.assertEqual(q.count(),1)
+        # Test the other way around:
+        q = self.pocketsearch.search(Q(price__gte=2) & Q(product="Apple") & Q(code__allow_prefix="A*"))
+        self.assertEqual(q.count(),1)        
+        # Mixed
+        q = self.pocketsearch.search(Q(code__allow_prefix="A*") & Q(price__gte=2) & Q(product="Apple"))
+        self.assertEqual(q.count(),1) 
+
+    def test_or(self):
+        q = self.pocketsearch.search(Q(price__gte=9) | Q(price__lte=3)) 
+        self.assertEqual(q.count(),2)
+
+    def test_combined_and_or(self):
+        q = self.pocketsearch.search(Q(price__gte=1) & Q(price__lte=5) & Q(product="Apple") | Q(product="Orange"))
+        self.assertEqual(q.count(),2)
+
+    def test_mixed_q_query(self):
+        with self.assertRaises(Query.QueryError):
+            self.pocketsearch.search(Q(price__gte=1) & Q(price__lte=5), product="apple")
+
+    def test_q_objects_multiple_kw_arguments(self):
+        with self.assertRaises(Query.QueryError):
+            self.pocketsearch.search(Q(price__gte=1,price__lte=5))
 
 class IDFieldTest(unittest.TestCase):
 

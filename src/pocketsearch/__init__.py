@@ -226,6 +226,7 @@ class Schema:
         sqlite_categories = None
         sqlite_tokenchars = None
         sqlite_separators = None
+        prefix_index = None
 
     RESERVED_KEYWORDS = [
         'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
@@ -239,7 +240,8 @@ class Schema:
         'QUERY', 'RAISE', 'RECURSIVE', 'REFERENCES', 'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT',
         'RIGHT', 'ROLLBACK', 'ROW', 'SAVEPOINT', 'SELECT', 'SET', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TO',
         'TRANSACTION', 'TRIGGER', 'UNION', 'UNIQUE', 'UPDATE', 'USING', 'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL', 'WHEN',
-        'WHERE', 'WITH', 'WITHOUT'
+        'WHERE', 'WITH', 'WITHOUT','NAME','FIELDS','FIELDS_INDEX','FIELDS_WITH_DEFAULT',
+        'REVERSE_LOOKUP','ID_FIELD'
     ]
 
     class SchemaError(Exception):
@@ -449,6 +451,7 @@ LU_EQ = "eq"
 LU_BOOL = "allow_boolean"
 LU_NEG = "allow_negation"
 LU_PREFIX = "allow_prefix"
+LU_INITIAL_TOKEN = "allow_initial_token"
 LU_GTE = "gte"
 LU_LTE = "lte"
 LU_GT = "gt"
@@ -464,6 +467,7 @@ LOOKUPS = {
     LU_BOOL: [Text],
     LU_NEG: [Text],
     LU_PREFIX: [Text],
+    LU_INITIAL_TOKEN: [Text],
     LU_GTE: [Int],
     LU_LTE: [Int],
     LU_GT: [Int],
@@ -491,13 +495,15 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = ["-", ".", "^"]
+        self.operators = ["-", "."]
         if not(LU_BOOL in lookup.names):
             self.keywords = self.keywords + ["AND", "OR"]
         if not(LU_NEG in lookup.names):
             self.keywords.append("NOT")
         if not(LU_PREFIX in lookup.names):
             self.operators.append("*")
+        if not(LU_INITIAL_TOKEN in lookup.names):
+            self.operators.append("^")
 
 
 class MatchFilter(Filter):
@@ -517,8 +523,9 @@ class MatchFilter(Filter):
         return value
 
     def to_sql(self):
-        self.sql_query.add_value(self._escape(self.value))
-        return "%s MATCH ?" % self.field.get_full_qualified_name()
+        v = "%s:%s" % (self.field.name,self._escape(self.value))
+        #self.sql_query.add_value(v)
+        return v
 
 
 class BooleanFilter(SQLQueryComponent):
@@ -647,6 +654,21 @@ class Join(SQLQueryComponent):
                                                                               left_field=self.left_field,
                                                                               right_field=self.right_field)
 
+class And(SQLQueryComponent):
+    '''
+    AND keyword in sql query
+    '''
+
+    def to_sql(self):
+        return "AND"
+
+class Or(SQLQueryComponent):
+    '''
+    OR keyword in sql query
+    '''
+
+    def to_sql(self):
+        return "OR"
 
 class SQLQuery:
     '''
@@ -660,9 +682,12 @@ class SQLQuery:
         self.v_from_tables = []
         self.v_joins = []
         self.v_where = []
+        self.v_where_fts = []
         self.v_order_by = []
         self.v_limit_and_offset = None
         self.query_args = []
+        self.boolean_query=False
+        self.connect_fts_clause=None
 
     def count(self):
         '''
@@ -721,19 +746,38 @@ class SQLQuery:
                                  right_field=right_field,
                                  sql_query=self))
 
-    def where(self, field, lookup, clear=False):
+    def where(self, field, lookup, operator, clear=False):
         '''
         Set filter items.
         '''
         if clear:
             self.v_where.clear()
-        if field.fts_enabled():
-            filter_clazz = MatchFilter
         else:
-            filter_clazz = BooleanFilter
-        if field.__class__ is Date:
-            filter_clazz = DateFilter
-        self.v_where.append(filter_clazz(field=field, value=lookup.value, lookup=lookup, sql_query=self))
+            if field.fts_enabled():
+                filter_clazz = MatchFilter
+            else:
+                filter_clazz = BooleanFilter
+            if field.__class__ is Date:
+                filter_clazz = DateFilter
+            if field.fts_enabled():
+                if operator is not None:
+                    if len(self.v_where) > 0 and len(self.v_where_fts) == 0:
+                        self.connect_fts_clause=operator(self)
+                    else:
+                        self.v_where_fts.append(operator(self))
+                self.v_where_fts.append(filter_clazz(field=field, value=lookup.value, lookup=lookup, sql_query=self))
+            else:
+                if operator is not None:
+                    if len(self.v_where_fts) > 0 and len(self.v_where) == 0:
+                        self.connect_fts_clause=operator(self)
+                    else:
+                        self.v_where.append(operator(self))
+                else:
+                    if len(self.v_where)>0:
+                        self.v_where.append(And(self))
+                self.v_where.append(filter_clazz(field=field, value=lookup.value, lookup=lookup, sql_query=self))
+
+
 
     def order_by(self, field, sort_dir=None, clear=False):
         '''
@@ -771,8 +815,19 @@ class SQLQuery:
             stmt.append("WHERE")
             stmt.append(" AND ".join([j.to_sql() for j in self.v_joins]))
             if self.v_where:
-                stmt.append("AND")
-                stmt.append(" AND ".join([w.to_sql() for w in self.v_where]))
+                stmt.append("AND (")
+                stmt.append(" ".join([w.to_sql() for w in self.v_where]))
+                stmt.append(" ) ")
+            if self.v_where_fts:
+                if self.connect_fts_clause:
+                    stmt.append(self.connect_fts_clause.to_sql())
+                else:
+                    stmt.append(" AND ")
+                table_name="%s_fts" % self.search_instance.schema.name
+                stmt.append(table_name)
+                stmt.append("MATCH ?")
+                val = " ".join([w.to_sql() for w in self.v_where_fts])                
+                self.add_value(val)
         if len(self.v_order_by) > 0:
             stmt.append("ORDER BY")
         stmt.append(",".join([o.to_sql() for o in self.v_order_by]))
@@ -780,6 +835,39 @@ class SQLQuery:
             stmt.append(self.v_limit_and_offset.to_sql())
         return " ".join(stmt), self.query_args
 
+class QExpr:
+
+    def __init__(self,**kwargs):
+        if len(kwargs)>1:
+            raise Query.QueryError("Only one keyword argument allowed in Q objects.")
+        self.kwargs=kwargs
+        self.operator=None
+
+    def __repr__(self):
+        return "<QExpr:%s %s>" % (self.operator,self.kwargs)
+
+class Q:
+
+    def __init__(self,**kwargs):
+        self.q_exprs = [QExpr(**kwargs)]
+
+    def __or__(self,obj):
+        for q_expr in obj.q_exprs:
+            q_expr.operator=Or
+            self.q_exprs.append(q_expr)
+        return self
+
+    def __and__(self,obj):
+        for q_expr in obj.q_exprs:
+            q_expr.operator=And
+            self.q_exprs.append(q_expr)
+        return self
+
+    def __repr__(self):
+        return " ".join([str(ex) for ex in self.q_exprs])
+
+    def __iter__(self):
+        return iter(self.q_exprs)
 
 class Query:
     '''
@@ -793,23 +881,27 @@ class Query:
         Raised if the query could not be correctly interpreted.
         '''
 
-    def __init__(self, search_instance, arguments):
+    def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
         self.arguments = arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         self.unions = []
         for field in self.search_instance.schema.get_fields():
             self.sql_query.select(field=field)
-        for argument in arguments.values():
-            for lookup in argument.lookups:
-                self.sql_query.where(field=argument.field, lookup=lookup)
-        #self.sql_query.select("rank")
+        if len(arguments)>0:
+            for argument in arguments.values():
+                for lookup in argument.lookups:
+                    self.sql_query.where(field=argument.field, lookup=lookup , operator = None)
+        else:
+            for q_expr in q_arguments:
+                for argument in q_expr.arguments.values():
+                    for lookup in argument.lookups:
+                        self.sql_query.where(field=argument.field,lookup=lookup , operator = q_expr.operator)
         self.sql_query.table(table_name=self.search_instance.schema.name)
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name)
         self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], "id", "rowid")
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
-        #self._defaults_set = True
         self._default_order_by_set = True
         self._default_values_set = True
         self.is_aggregate_query = False
@@ -880,11 +972,13 @@ class Query:
         '''
         Set the values you want to have in the search result list.
         '''
-        self._default_values_set = False
         for a in args:
             field = self.search_instance.schema.get_field(a, raise_exception=True)
             self.sql_query.select(field,clear=self._default_values_set)
             self._default_values_set = False
+        # Propagate this to union queries as well:
+        for query in self.unions:
+            query.values(*args)
         return self
 
     def highlight(self,*args,marker_start="*",marker_end="*"):
@@ -926,7 +1020,7 @@ class Query:
         stmt, query_args = self.sql_query.to_sql()
         for query in self.unions:
             u_stmt, u_ar = query.sql_query.to_sql()
-            stmt += " UNION ALL " + u_stmt
+            stmt += " UNION " + u_stmt
             query_args = query_args + u_ar
         if self.is_aggregate_query:
             count = 0
@@ -1066,6 +1160,18 @@ class PocketSearch:
             return ""
         return "," + ",".join(options)
 
+    def _create_prefix_index(self):
+        prefix_index = self.schema._meta.prefix_index
+        if prefix_index is not None:
+            if not(isinstance(prefix_index,list)):
+                raise self.schema.SchemaError("prefix_index must be list containing positive integer values")
+            if not(all(isinstance(item, int) and item > 0 for item in prefix_index)):
+                raise self.schema.SchemaError("prefix_index list should only contain positive integer values.")
+            # eliminate duplicates
+            prefix_index = set(prefix_index)
+            return ", prefix='{prefix_index}'".format(prefix_index=" ".join(str(item) for item in prefix_index))
+        return ""
+
     def _create_table(self, index_name):
         '''
         Private method to create the SQL tables used by the index.
@@ -1081,13 +1187,13 @@ class PocketSearch:
                     default_index_fields.append(field)
                 fields.append(field)
         if len(index_fields) == 0:
-            raise IndexError("Schema does not have a single indexable field.")
+            raise IndexError("Schema does not have a single indexable FTS field.")
         sql_table = '''
         CREATE TABLE IF NOT EXISTS %s(%s)
         ''' % (index_name, ", ".join([field.to_sql() for field in fields]))
         sql_virtual_table = '''
-        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s);
-        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options())
+        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s %s);
+        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options(), self._create_prefix_index())
         # Trigger definitions:
         sql_trigger_insert = '''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
@@ -1134,7 +1240,7 @@ class PocketSearch:
             for lookup in lookups:
                 for name in lookup.names:
                     if not(name) in LOOKUPS:
-                        raise self.FieldError("Unknown lookup: '%s' in %s" % (lookup, f))
+                        raise self.FieldError("Unknown lookup: '%s' in field '%s'" % (name, f))
         arguments = {}
         for field in self.schema:
             if field.name not in referenced_fields and not(for_search) and field.name not in ["id", "rank"]:
@@ -1255,12 +1361,18 @@ class PocketSearch:
         self.cursor.execute(sql, (rowid,))
         self.commit()
 
-    def search(self, **kwargs):
+    def search(self, *args, **kwargs):
         '''
         Searches the index. Keyword arguments must correspond to
         '''
+        if len(args)>0 and len(kwargs)>0:
+            raise Query.QueryError("Cannot mix Q objects and keyword arguments.")
+        if len(args)>0:
+            for q_expr in args[0]:
+                q_expr.arguments = self.get_arguments(q_expr.kwargs)
+            return Query(search_instance=self,arguments=[],q_arguments=args[0])
         arguments = self.get_arguments(kwargs)
-        return Query(self, arguments)
+        return Query(search_instance=self, arguments=arguments,q_arguments=[])
 
 
 class IndexReader(abc.ABC):

@@ -1,9 +1,9 @@
 # pocketsearch
-pocketsearch is a pure-Python full text indexing search engine based on sqlite and the FTS5 extension. It provides
+pocketsearch is a pure-Python full text indexing search engine based on sqlite and the [FTS5](https://www.sqlite.org/fts5.html) extension. It provides
 
-- Support for full text search
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
 - Support for multi-field indices including text, numeric and date search
+- Support for prefix and initial token queries
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
@@ -98,6 +98,21 @@ providing the allow_prefix lookup:
 print(pocket_search.search(text__allow_prefix="hel*")[0].text)
 ```
 
+Please note, that prefix queries might get very slow as the index grows. To 
+optimize performance, you can use prefix indices as described in the chapter 
+on "schemas" in this README.
+
+## Initial token queries
+
+If you want to search only the first token at the begining of a document, use the 
+allow_initial_token lookup:
+
+```Python
+pocket_search.search(text__allow_initial_token="^hello")
+```
+
+This will only match results that have 'hello' at the very beginning. 
+
 ## Phrase queries
 
 If you want to search for phrases, use quotation marks:
@@ -150,7 +165,7 @@ The positional arguments of the highlight method represent the fields you want t
 
 If you have very long text, you might want to only show a snippet with all terms found in your +
 search results. This can be done with the snippet method. Assuming we have the article 
-on inverted indices (https://en.wikipedia.org/wiki/Inverted_index) in our database we can extract snippets like this:
+on Wikipedia article on [inverted indices](https://en.wikipedia.org/wiki/Inverted_index) in our database we can extract snippets like this:
 
 ```Python
 pocket_search.search(text="inverted file").snippet("text",snippet_length=16)[0].text
@@ -200,15 +215,20 @@ Following fields are available:
 
 Following options are available for fields:
 
-* index - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
-* is_id_field - a schema can only have one IDField. It is used by the .insert_or_update method to decide if a document should be inserted or an existing document should be updated.
+* **index** - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
+* **is_id_field** - a schema can only have one IDField. It is used by the .insert_or_update method to decide if a document should be inserted or an existing document should be updated.
 
 With respect to naming your fields following restrictions apply:
 
 * Fields may not start with an underscore.
 * Fields may not contain double underscores.
 
-> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document.
+Moreover field names may not be composed of reserved SQL keywords.
+
+> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document. The ID field is used to delete or 
+update documents.
+
+## Queries on multi-field indices
 
 Once the schema is created, you can query multiple fields:
 
@@ -221,19 +241,46 @@ pocket_search.search(text="world")
 pocket_search.search(text="world",filename="a.txt")
 ```
 
-> **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND. Currently, there is no way to express OR queries in the .search method.
+> **_NOTE:_**  When using multiple fields in search, the default boolean operation is AND.
 
-However, you can join 2 queries (resulting in a UNION statement in SQL):
+### AND/OR queries on multiple fields
+
+Similar to the Django web framework, you can use "Q Objects" to express OR queries on multiple fields:
 
 ```Python
-q = pocket_search.search(text="world") | pocket_search.search(filename="a.txt")
-for result in q:
-    print(result.text)
+from pocketsearch import Q
+# Search for documents where text="world" OR filename="a.txt"
+q = pocket_search.search(Q(text="world") | Q(filename="a.txt"))
+# Search for documents where text="world" AND filename="a.txt"
+q = pocket_search.search(Q(text="world") & Q(filename="a.txt"))
 ```
 
-The result will contain all documents containing either "world" or where the filename is "a.text".
+Please note, that you either have to use one notation or the other. You cannot mix 
+Q objects with keyword arguments and you can only provide one field per Q object:
 
-This option is currently experimental and still has issues, espcially when accessing results through indexing. 
+```Python
+# This will NOT work:
+pocket_search.search(Q(text="world") , filename="a.txt")
+# This will work neither:
+pocket_search.search(Q(text="world",filename="a.txt"))
+```
+
+
+## Setting prefix indices
+To speed up prefix queries, you can setup prefix indices:
+
+```Python
+    class PrefixIndex1(Schema):
+        '''
+        Simple schema that sets a prefix index for 
+        2,3 and 4 characters
+        '''
+        class Meta:
+            prefix_index=[2,3,4]
+        body = Text(index=True)
+```
+
+This will create prefix indices for 2,3 and 4 character prefixes.
 
 # Inserting, updating and deleting data
 
@@ -411,9 +458,9 @@ class FileContents(Schema):
     filename = Text(is_id_field=True)
 ```
 
-# Multiple indicies in one database
+# Multiple indices in one database
 
-You can have multiple indicies in one database (only databases written to disk) by setting 
+You can have multiple indices in one database (only databases written to disk) by setting 
 the "index_name" option:
 
 ```Python
