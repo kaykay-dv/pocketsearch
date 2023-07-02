@@ -57,7 +57,7 @@ for document in pocket_search.search(text="hello"):
     print(document.text)
 ```
 
-There is also supported for slicing:
+There is also support for slicing:
 
 ```Python
 pocket_search.search(text="hello")[1:3]
