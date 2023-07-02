@@ -161,6 +161,11 @@ pocket_search.search(text__allow_boolean="hello OR world").order_by("+text")
 pocket_search.search(text__allow_boolean="hello OR world").order_by("-text")
 ```
 
+**+** indicates ascending order, **-** descending order. If not explicitly given, 
+ascending order is assumed. 
+
+> **_NOTE:_** If order_by is not explicitly set, results are order by rank in descending order.
+
 ## Highlighting and extracting snippets from results
 
 FTS5 provides 2 functions to highlight tokens found in text and extracting snippets from a text. 
