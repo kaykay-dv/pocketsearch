@@ -78,7 +78,24 @@ print(pocket_search.search(text__allow_boolean="hello OR world")[0].text)
 Hello World !
 ```
 
-Please note, that AND as well as OR are case-sensitive in this context.
+> **_NOTE:_** Please note, that AND as well as OR are case-sensitive in this context.
+
+Similar to the Django Web Framework, pocketsearch supports Q objects, thus
+you can use this notation as well:
+
+```Python
+from pocketsearch import PocketSearch, Q
+
+pocket_search = PocketSearch()
+pocket_search.insert(text="Hello World !")
+# Q object-based notation:
+pocket_search.search(Q(text="hello") | Q(text="world"))[0].text
+# this is equivalent to:
+pocket_search.search(text__allow_boolean="hello OR world")[0].text
+Hello World !
+```
+
+
 
 ## Counting results
 
