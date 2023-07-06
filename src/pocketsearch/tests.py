@@ -1,10 +1,21 @@
+import sys
 import os.path
 import unittest
 import tempfile
 import datetime
+import logging
+from io import StringIO
 
 from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField, Q
 
+logging.basicConfig(level=logging.DEBUG)  
+
+logging.basicConfig(
+            level=logging.DEBUG,  
+            handlers=[
+                logging.StreamHandler(sys.stdout)  
+            ]
+        )
 
 class Movie(Schema):
     '''
@@ -382,6 +393,11 @@ class QTests(unittest.TestCase):
             ("C01","Apple and Orange",3),            
         ]:
             self.pocketsearch.insert(code=code,product=name,price=price)
+
+    def test_deprecated_union_search(self):
+        # FIXME: test if log message is actually written
+        self.pocketsearch.search(product="apple") | self.pocketsearch.search(product="peach")
+
 
     def test_or_same_keyword(self):
         q = self.pocketsearch.search(Q(product='apple') | Q(product='Peach'))

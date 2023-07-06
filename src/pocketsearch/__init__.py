@@ -12,7 +12,9 @@ import os
 import time
 import abc
 import copy
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Timer:
     '''
@@ -961,6 +963,7 @@ class Query:
         self.sql_query.v_limit_and_offset = None
 
     def __or__(self, obj):
+        logger.warning("Applying | operator on .search method is deprecated since version 0.9. Consider using Q objects instead.")
         if not(isinstance(obj, Query)):
             raise self.QueryError("Only instances of class Query can be used with the OR operator.")
         if not(obj._defaults_set()) or not(self._defaults_set()):
@@ -1133,6 +1136,7 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
+        logger.debug("sql=%s,args=%s" % (sql,args))
         return self.cursor.execute(sql, args)
 
     def _format_sql(self, index_name, fields, sql):

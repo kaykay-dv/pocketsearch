@@ -1,5 +1,11 @@
 # Change log
 
+## Version 0.9.1
+* Added warning when invoking | operator on .search method
+* Added debug log info to execute_sql statement
+* Added logging to unit tests
+
+
 ## Version 0.9.0
 * Introduced Q objects for AND/OR queries
 * Introduced initial token queries using the allow_initial_token (^) lookup.
