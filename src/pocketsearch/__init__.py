@@ -497,7 +497,7 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = ["-", "."]
+        self.operators = ["-", ".","#"]
         if not(LU_BOOL in lookup.names):
             self.keywords = self.keywords + ["AND", "OR"]
         if not(LU_NEG in lookup.names):

@@ -518,6 +518,9 @@ class CharacterTest(unittest.TestCase):
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
+    def test_hash(self):
+        self.assertEqual(self.pocket_search.search(text="#").count(), 0)
+
     def test_search_hyphen(self):
         self.assertEqual(self.pocket_search.search(text="break even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="break-even").count(), 1)
