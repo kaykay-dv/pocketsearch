@@ -1366,9 +1366,12 @@ class PocketSearch:
         self.cursor.execute(sql, (rowid,))
         self.commit()
 
-    def typeahead(self,**kwargs):
+    def typeahead(self,*args,**kwargs):
         if len(kwargs)>1:
             raise Query.QueryError("Only one field can be searched through typeahead.")
+        if len(kwargs)==0:
+            # return all results
+            return Query(search_instance=self,arguments=[],q_arguments=[])
         query = list(kwargs.values())[0]
         field = list(kwargs.keys())[0]
         query_components = query.split(" ")

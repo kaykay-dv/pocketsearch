@@ -522,8 +522,17 @@ class TypeaheadTest(unittest.TestCase):
             self.pocket_search.typeahead(text="Ind",title="Ind")
 
     def test_typeahead_unknown_field(self):
-        with self.assertRaises(PocketSearch.FieldError):
+        '''
+        Test if exception is correctly thrown
+        '''
+        with self.assertRaises(self.pocket_search.FieldError):
             self.pocket_search.typeahead(product="Ind")
+
+    def test_no_kwarg_given(self):
+        '''
+        If no keyword argument is provided, all results are returned
+        '''
+        self.assertEqual(self.pocket_search.typeahead().count(),4)
 
     def test_typeahead_one_token(self):
         '''
@@ -535,7 +544,14 @@ class TypeaheadTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
         self.assertEqual(self.pocket_search.typeahead(text="Ind")[0].text,"Indiana Jones")
         self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
-        
+
+    def test_order_by(self):
+        '''
+        Test, if order by can be applied to typeahead.
+        This should bring Jones Indiana as first result, as we sort by -rank
+        '''
+        self.assertEqual(self.pocket_search.typeahead(text="In").order_by("-rank")[0].text,"Jones Indiana")
+
     def test_typeahead_two_tokens(self):
         '''
         Test typeahead with 2 tokens
@@ -553,7 +569,7 @@ class TypeaheadTest(unittest.TestCase):
         Test if quoting, works. Special characters are not allowed 
         in typeahead queries
         '''
-        self.assertEqual(self.pocket_search.typeahead(text="*").count(),0)
+        self.assertEqual(self.pocket_search.typeahead(1,text="*").count(),0)
 
 class CharacterTest(unittest.TestCase):
 
