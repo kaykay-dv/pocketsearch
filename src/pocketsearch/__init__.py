@@ -482,6 +482,7 @@ LOOKUPS = {
 
 }
 
+FTS_OPERATORS = ["-", ".","#"]
 
 class Filter(SQLQueryComponent):
     '''
@@ -497,7 +498,7 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = ["-", ".","#"]
+        self.operators = copy.copy(FTS_OPERATORS)
         if not(LU_BOOL in lookup.names):
             self.keywords = self.keywords + ["AND", "OR"]
         if not(LU_NEG in lookup.names):
@@ -1364,6 +1365,26 @@ class PocketSearch:
         sql = "delete from %s where id = ?" % (self.schema.name)
         self.cursor.execute(sql, (rowid,))
         self.commit()
+
+    def typeahead(self,**kwargs):
+        if len(kwargs)>1:
+            raise Query.QueryError("Only one field can be searched through typeahead.")
+        query = list(kwargs.values())[0]
+        field = list(kwargs.keys())[0]
+        query_components = query.split(" ")
+        # quote, if necessary
+        for idx,component in enumerate(query_components):
+            for operator in FTS_OPERATORS+["*"]:              
+                if operator in component:
+                    query_components[idx]='"%s"' % query_components[idx]
+        if len(query_components)>1:
+            prefix_first_word=""
+        else:
+            prefix_first_word="*"
+        query_components[0]="^%s%s OR %s" % (query_components[0],prefix_first_word,query_components[0])
+        query_components[len(query_components)-1]=query_components[-1:][0]+"*"
+        query = " AND ".join(query_components)
+        return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
 
     def search(self, *args, **kwargs):
         '''

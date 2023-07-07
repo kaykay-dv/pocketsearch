@@ -499,6 +499,61 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
 
+class TypeaheadTest(unittest.TestCase):
+    '''
+    Tests for typeahead method.
+    '''    
+
+    def setUp(self):
+        self.pocket_search = PocketSearch(writeable=True)
+        for elem in [
+            "Jones Indiana",            
+            "Indiana Jones",
+            "Star Wars",
+            "The return of the Jedi"
+        ]:
+            self.pocket_search.insert(text=elem)
+
+    def test_typeahead_multiple_keywords(self):
+        '''
+        Multiple keywords are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.typeahead(text="Ind",title="Ind")
+
+    def test_typeahead_unknown_field(self):
+        with self.assertRaises(PocketSearch.FieldError):
+            self.pocket_search.typeahead(product="Ind")
+
+    def test_typeahead_one_token(self):
+        '''
+        Both typeahead queries should bring "Indiana Jones" as first result,
+        as "Indiana" is at the beginning of the column, "Jones Indiana" should 
+        come second.
+        '''
+        self.assertEqual(self.pocket_search.typeahead(text="In")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
+        self.assertEqual(self.pocket_search.typeahead(text="Ind")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
+        
+    def test_typeahead_two_tokens(self):
+        '''
+        Test typeahead with 2 tokens
+        '''        
+        self.assertEqual(self.pocket_search.typeahead(text="Indiana J")[0].text,"Indiana Jones")
+
+    def test_typeahead_three_tokens(self):
+        '''
+        Test typeahead with 3 tokens
+        '''
+        self.assertEqual(self.pocket_search.typeahead(text="return of the")[0].text,"The return of the Jedi")
+
+    def test_special_characters_in_query(self):
+        '''
+        Test if quoting, works. Special characters are not allowed 
+        in typeahead queries
+        '''
+        self.assertEqual(self.pocket_search.typeahead(text="*").count(),0)
 
 class CharacterTest(unittest.TestCase):
 
