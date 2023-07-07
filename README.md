@@ -202,6 +202,23 @@ than 64. You can change the markers by providing text_before and text_after argu
 pocket_search.search(text="inverted file").snippet("text",snippet_length=16,text_before="<",text_after=">")[0].text
 ```
 
+# Typeahead / autocomplete queries
+The typeahead feature is a convenience function that helps in implementing a suggestion feature when people are typing 
+characters. This is commonly used in search bars in internet search engines. 
+
+```Python
+pocket_search.typeahead(text="inv")[0]
+Inverted file
+```
+
+The typeahead works as follows:
+
+* If only one token is entered the query is turned to a prefix query: ^inv* OR inv - thus the characters are searched at the beginning of the column OR at any arbitrary position in the column.
+* If more tokens are provided (separated by whitespaces), only the last token is turned to a prefix query. In this case the first token becomes ^inv OR inv
+
+The typeahead method only allows one field (in this case text) to be searched. Multiple fields are not allowed, neither is the use of operators including the prefix operator.
+
+
 # Schemas
 
 A search index may have an arbitrary list of fields that can be searched. Schemas 

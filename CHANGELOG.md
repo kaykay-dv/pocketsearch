@@ -1,10 +1,11 @@
 # Change log
 
 ## Version 0.9.1
+* Added typeahead convenience method
 * Added warning when invoking | operator on .search method
 * Added debug log info to execute_sql statement
 * Added logging to unit tests
-
+* Fixed a bug that caused the usage of # in a query resulting in a SQL parse error
 
 ## Version 0.9.0
 * Introduced Q objects for AND/OR queries
