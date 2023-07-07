@@ -4,6 +4,8 @@ pocketsearch is a pure-Python full text indexing search engine based on sqlite a
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
 - Support for multi-field indices including text, numeric and date search
 - Support for prefix and initial token queries
+- Support for highlightening search results and extracting snippets
+- Typeahead / Autocomplete features
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
