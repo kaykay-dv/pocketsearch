@@ -204,22 +204,25 @@ than 64. You can change the markers by providing text_before and text_after argu
 pocket_search.search(text="inverted file").snippet("text",snippet_length=16,text_before="<",text_after=">")[0].text
 ```
 
-## Typeahead / autocomplete queries
-The typeahead feature is a convenience function that helps in implementing a suggestion feature when people are typing 
-characters. This is commonly used in search bars in internet search engines. 
+## Autocomplete queries
+The autocomplete feature is a convenience function that predicts the rest of an input a user might type as a query. 
 
 ```Python
-pocket_search.typeahead(text="inv")[0]
+pocket_search.autocomplete(text="inv")[0]
 Inverted file
 ```
 
-The typeahead works as follows:
+Autocomplete works as follows:
 
 * If only one token is entered the query is turned to a prefix query: ^inv* OR inv - thus the characters are searched at the beginning of the column OR at any arbitrary position in the column.
-* If more tokens are provided (separated by whitespaces), only the last token is turned to a prefix query. In this case the first token becomes ^inv OR inv
+* If more tokens are provided (e.g. "inverted f" - separated by whitespaces), only the last token is turned to a prefix query. In this case the query becomes (^inverted OR inverted) AND f*
 
-The typeahead method only allows one field (in this case text) to be searched. Multiple fields are not allowed, neither is the use of operators including the prefix operator. As the .typeahead 
-method returns a Query object as the .search method does, all previously described methods can be used as well, specifically .order_by or highlightening functions.
+Some rules apply when using the autocomplete method:
+
+* Look ups are not allowed (e.g. allow_boolean, etc.)
+* Special operators are not allowed (e.g. ^ or *)
+* You can only provide one field as keyword argument
+* .autocomplete returns a Query objects, thus you can apply slicing, counting, order_by and highlighting as described above.
 
 
 # Schemas
