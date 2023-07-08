@@ -1,10 +1,29 @@
+'''
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY,
+WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+'''
+
+import sys
 import os.path
 import unittest
 import tempfile
 import datetime
+import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, IdField, Q
+from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q
 
+logging.basicConfig(level=logging.DEBUG)  
+
+logging.basicConfig(
+            level=logging.DEBUG,  
+            handlers=[
+                logging.StreamHandler(sys.stdout)  
+            ]
+        )
 
 class Movie(Schema):
     '''
@@ -175,6 +194,10 @@ class OperatorSearch(BaseTest):
         # by default, AND/OR queries are not supported:
         self.assertEqual(self.pocket_search.search(text='france AND paris').count(), 0)
         self.assertEqual(self.pocket_search.search(text='france OR paris').count(), 0)
+
+    def test_near_query(self):
+        # NEAR queries are not supported at the moment
+        self.assertEqual(self.pocket_search.search(text='NEAR(one, two)').count(),0) 
 
     def test_combined_lookups(self):
         self.assertEqual(self.pocket_search.search(text__allow_boolean__allow_prefix='france OR engl*').count(), 2)
@@ -383,6 +406,15 @@ class QTests(unittest.TestCase):
         ]:
             self.pocketsearch.insert(code=code,product=name,price=price)
 
+    def test_deprecated_union_search(self):
+        # FIXME: test if log message is actually written
+        self.pocketsearch.search(product="apple") | self.pocketsearch.search(product="peach")
+
+
+    def test_or_same_keyword(self):
+        q = self.pocketsearch.search(Q(product='apple') | Q(product='Peach'))
+        self.assertEqual(q.count(),3)
+
     def test_phrase_query(self):
         q = self.pocketsearch.search(Q(product='"apple and orange"'))
         self.assertEqual(q.count(),1)        
@@ -479,6 +511,91 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
 
+class AutocompleteTest(unittest.TestCase):
+    '''
+    Tests for autocomplete method.
+    '''    
+
+    def setUp(self):
+        self.pocket_search = PocketSearch(writeable=True)
+        for elem in [
+            "Jones Indiana",            
+            "Indiana Jones",
+            "Star Wars",
+            "The return of the Jedi"
+        ]:
+            self.pocket_search.insert(text=elem)
+
+    def test_autocomplete_multiple_keywords(self):
+        '''
+        Multiple keywords are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.autocomplete(text="Ind",title="Ind")
+
+    def test_autocomplete_with_lookups(self):
+        '''
+        Multiple keywords are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.autocomplete(text__allow_prefix="Ind")
+
+    def test_autocomplete_unknown_field(self):
+        '''
+        Test if exception is correctly thrown
+        '''
+        with self.assertRaises(self.pocket_search.FieldError):
+            self.pocket_search.autocomplete(product="Ind")
+
+    def test_no_kwarg_given(self):
+        '''
+        If no keyword argument is provided, all results are returned
+        '''
+        self.assertEqual(self.pocket_search.autocomplete().count(),4)
+
+    def test_autocomplete_one_token(self):
+        '''
+        Both autocomplete queries should bring "Indiana Jones" as first result,
+        as "Indiana" is at the beginning of the column, "Jones Indiana" should 
+        come second.
+        '''
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[1].text,"Jones Indiana")
+        self.assertEqual(self.pocket_search.autocomplete(text="Ind")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[1].text,"Jones Indiana")
+
+    def test_order_by(self):
+        '''
+        Test, if order by can be applied to autocomplete.
+        This should bring Jones Indiana as first result, as we sort by -rank
+        '''
+        self.assertEqual(self.pocket_search.autocomplete(text="In").order_by("-rank")[0].text,"Jones Indiana")
+
+    def test_autocomplete_two_tokens(self):
+        '''
+        Test autocomplete with 2 tokens
+        '''        
+        self.assertEqual(self.pocket_search.autocomplete(text="Indiana J")[0].text,"Indiana Jones")
+
+    def test_autocomplete_including_and_or_operators(self):
+        '''
+        AND/OR keywords cannot be used in autocomplete:
+        '''
+        self.assertEqual(self.pocket_search.autocomplete(text="INDIANA OR JONES").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(text="INDIANA AND JONES").count(),0)
+
+    def test_autocomplete_three_tokens(self):
+        '''
+        Test autocomplete with 3 tokens
+        '''
+        self.assertEqual(self.pocket_search.autocomplete(text="return of the")[0].text,"The return of the Jedi")
+
+    def test_special_characters_in_query(self):
+        '''
+        Test if quoting, works. Special characters are not allowed 
+        in autocomplete queries
+        '''
+        self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
 class CharacterTest(unittest.TestCase):
 
@@ -497,6 +614,9 @@ class CharacterTest(unittest.TestCase):
         self.pocket_search = PocketSearch(writeable=True)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
+
+    def test_hash(self):
+        self.assertEqual(self.pocket_search.search(text="#").count(), 0)
 
     def test_search_hyphen(self):
         self.assertEqual(self.pocket_search.search(text="break even").count(), 1)

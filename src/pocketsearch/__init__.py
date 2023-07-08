@@ -12,7 +12,9 @@ import os
 import time
 import abc
 import copy
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Timer:
     '''
@@ -480,6 +482,7 @@ LOOKUPS = {
 
 }
 
+FTS_OPERATORS = ["-", ".","#","NEAR"]
 
 class Filter(SQLQueryComponent):
     '''
@@ -495,7 +498,7 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = ["-", "."]
+        self.operators = copy.copy(FTS_OPERATORS)
         if not(LU_BOOL in lookup.names):
             self.keywords = self.keywords + ["AND", "OR"]
         if not(LU_NEG in lookup.names):
@@ -961,6 +964,7 @@ class Query:
         self.sql_query.v_limit_and_offset = None
 
     def __or__(self, obj):
+        logger.warning("Applying | operator on .search method is deprecated since version 0.9. Consider using Q objects instead.")
         if not(isinstance(obj, Query)):
             raise self.QueryError("Only instances of class Query can be used with the OR operator.")
         if not(obj._defaults_set()) or not(self._defaults_set()):
@@ -1133,6 +1137,7 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
+        logger.debug("sql=%s,args=%s" % (sql,args))
         return self.cursor.execute(sql, args)
 
     def _format_sql(self, index_name, fields, sql):
@@ -1360,6 +1365,37 @@ class PocketSearch:
         sql = "delete from %s where id = ?" % (self.schema.name)
         self.cursor.execute(sql, (rowid,))
         self.commit()
+
+    def autocomplete(self,*args,**kwargs):
+        '''
+        Constructs a query against a given field that performs auto-complete
+        (thus, predicting what the rest of a word is a user types in).
+        '''
+        if len(kwargs)>1:
+            raise Query.QueryError("Only one field can be searched through autocomplete.")
+        if len(kwargs)==0:
+            # return all results
+            return Query(search_instance=self,arguments=[],q_arguments=[])
+        query = list(kwargs.values())[0]
+        if "__" in list(kwargs.keys())[0]:
+            raise Query.QueryError("Lookups are not allowed in autocomplete queries.")
+        field = list(kwargs.keys())[0]
+        query_components = query.split(" ")
+        # quote, if necessary
+        for idx,component in enumerate(query_components):
+            for operator in FTS_OPERATORS+["*","AND","OR","NEAR"]:          
+                if operator in component:
+                    query_components[idx]='"%s"' % query_components[idx]
+        if len(query_components)>1:
+            prefix=""
+        else:
+            prefix="*"
+        query_components[0]="(^{first_word}{prefix} OR {first_word}{prefix})".format(first_word=query_components[0],
+                                                                                        prefix=prefix)
+        if len(query_components)>1:
+            query_components[len(query_components)-1]=query_components[-1:][0]+"*"
+        query = " AND ".join(query_components)
+        return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
 
     def search(self, *args, **kwargs):
         '''

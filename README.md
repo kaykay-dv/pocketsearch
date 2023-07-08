@@ -1,9 +1,12 @@
 # pocketsearch
 pocketsearch is a pure-Python full text indexing search engine based on sqlite and the [FTS5](https://www.sqlite.org/fts5.html) extension. It provides
 
-- A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
-- Support for multi-field indices including text, numeric and date search
-- Support for prefix and initial token queries
+- A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
+- Multi-field indices using schemas including text, numeric and date search
+- Prefix, phrase and initial token queries
+- Boolean search queries
+- Highlightning search results and extracting snippets
+- Autocomplete features
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
@@ -38,7 +41,7 @@ from pocketsearch import PocketSearch
 
 pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
-print(pocket_search.search(text="hello")[0].text)
+pocket_search.search(text="hello")[0].text
 Hello World !
 ```
 
@@ -57,7 +60,7 @@ for document in pocket_search.search(text="hello"):
     print(document.text)
 ```
 
-There is also supported for slicing:
+There is also support for slicing:
 
 ```Python
 pocket_search.search(text="hello")[1:3]
@@ -74,18 +77,35 @@ from pocketsearch import PocketSearch
 
 pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
-print(pocket_search.search(text__allow_boolean="hello OR world")[0].text)
+pocket_search.search(text__allow_boolean="hello OR world")[0].text
 Hello World !
 ```
 
-Please note, that AND as well as OR are case-sensitive in this context.
+> **_NOTE:_** Please note, that AND as well as OR are case-sensitive in this context.
+
+Similar to the Django Web Framework, pocketsearch supports Q objects, thus
+you can use this notation as well:
+
+```Python
+from pocketsearch import PocketSearch, Q
+
+pocket_search = PocketSearch()
+pocket_search.insert(text="Hello World !")
+# Q object-based notation:
+pocket_search.search(Q(text="hello") | Q(text="world"))[0].text
+# this is equivalent to:
+pocket_search.search(text__allow_boolean="hello OR world")[0].text
+Hello World !
+```
+
+
 
 ## Counting results
 
 By invoking the count method you get the number of search results:
 
 ```Python
-print(pocket_search.search(text__allow_boolean="hello OR world").count())
+pocket_search.search(text__allow_boolean="hello OR world").count()
 1
 ```
 
@@ -95,7 +115,7 @@ If you want to search for substrings, you can use prefix queries, by
 providing the allow_prefix lookup:
 
 ```Python
-print(pocket_search.search(text__allow_prefix="hel*")[0].text)
+pocket_search.search(text__allow_prefix="hel*")[0].text
 ```
 
 Please note, that prefix queries might get very slow as the index grows. To 
@@ -126,7 +146,7 @@ pocket_search.search(text='"this is" "a phrase"').count()
 Lookups can also be combined:
 
 ```Python
-print(pocket_search.search(text__allow_prefix__allow_boolean="hel* OR wor*")[0].text)
+pocket_search.search(text__allow_prefix__allow_boolean="hel* OR wor*")[0].text
 Hello World !
 ```
 
@@ -143,6 +163,11 @@ pocket_search.search(text__allow_boolean="hello OR world").order_by("+text")
 # Order by text in descending order
 pocket_search.search(text__allow_boolean="hello OR world").order_by("-text")
 ```
+
+**+** indicates ascending order, **-** descending order. If not explicitly given, 
+ascending order is assumed. 
+
+> **_NOTE:_** If order_by is not explicitly set, results are order by rank in descending order.
 
 ## Highlighting and extracting snippets from results
 
@@ -179,6 +204,27 @@ than 64. You can change the markers by providing text_before and text_after argu
 ```Python
 pocket_search.search(text="inverted file").snippet("text",snippet_length=16,text_before="<",text_after=">")[0].text
 ```
+
+## Autocomplete queries
+The autocomplete feature is a convenience function that predicts the rest of an input a user might type as a query. 
+
+```Python
+pocket_search.autocomplete(text="inv")[0]
+Inverted file
+```
+
+Autocomplete works as follows:
+
+* If only one token is entered the query is turned to a prefix query: ^inv* OR inv - thus the characters are searched at the beginning of the column OR at any arbitrary position in the column.
+* If more tokens are provided (e.g. "inverted f" - separated by whitespaces), only the last token is turned to a prefix query. In this case the query becomes (^inverted OR inverted) AND f*
+
+Some rules apply when using the autocomplete method:
+
+* Look ups are not allowed (e.g. allow_boolean, etc.)
+* Special operators are not allowed (e.g. ^ or *)
+* You can only provide one field as keyword argument
+* .autocomplete returns a Query objects, thus you can apply slicing, counting, order_by and highlighting as described above.
+
 
 # Schemas
 
