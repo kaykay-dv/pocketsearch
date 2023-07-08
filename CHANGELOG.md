@@ -6,6 +6,7 @@
 * Added debug log info to execute_sql statement
 * Added logging to unit tests
 * Fixed a bug that caused the usage of # in a query resulting in a SQL parse error
+* When a NEAR operator is found in the query, the query is quoted.
 
 ## Version 0.9.0
 * Introduced Q objects for AND/OR queries
