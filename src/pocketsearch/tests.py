@@ -162,6 +162,30 @@ class SQLFunctionTests(BaseTest):
         with self.assertRaises(Query.QueryError):
             self.pocket_search.search(text="forward index").snippet("text",snippet_length=0)        
 
+class TokenInfoTest(BaseTest):
+    '''
+    Test accessing meta data of the index
+    '''
+
+    def test_get_tokens(self):
+        '''
+        Try to access the list of tokens
+        '''
+        tokens = list(self.pocket_search.tokens())
+        # Check number of entries, should be 16
+        self.assertEqual(len(tokens),16)
+        # Check, if the first entry is the most frequent token
+        self.assertEqual(tokens[0]["token"],"the")
+        self.assertEqual(tokens[0]["num_documents"],2)
+        self.assertEqual(tokens[0]["total_count"],4)
+
+    def test_empty_pocket(self):
+        '''
+        Empty index should lead to an empty list
+        '''
+        p = PocketSearch()
+        self.assertEqual(len(list(p.tokens())),0)
+
 class OperatorSearch(BaseTest):
     '''
     Tests covering the usage of boolean operators and prefix search
