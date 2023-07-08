@@ -513,6 +513,34 @@ the "index_name" option:
 pocket_search = PocketSearch(db_name="my_db.db",index_name="Product",schema=Product)
 ```
 
+# Getting meta data on the index
+
+It is possible to get information on the tokens that are stored in an index:
+
+```Python
+list(pocket_search.tokens())
+[{'token': 'the', 'num_documents': 2, 'total_count': 4}
+{'token': 'is', 'num_documents': 3, 'total_count': 3}
+{'token': 'fence', 'num_documents': 1, 'total_count': 2}
+{'token': 'beyond', 'num_documents': 1, 'total_count': 1}
+{'token': 'captial', 'num_documents': 1, 'total_count': 1}
+{'token': 'england', 'num_documents': 1, 'total_count': 1}
+{'token': 'europe', 'num_documents': 1, 'total_count': 1}
+{'token': 'fox', 'num_documents': 1, 'total_count': 1}
+{'token': 'france', 'num_documents': 1, 'total_count': 1}
+{'token': 'he', 'num_documents': 1, 'total_count': 1}
+{'token': 'in', 'num_documents': 1, 'total_count': 1}
+{'token': 'jumped', 'num_documents': 1, 'total_count': 1}
+{'token': 'now', 'num_documents': 1, 'total_count': 1}
+{'token': 'of', 'num_documents': 1, 'total_count': 1}
+{'token': 'over', 'num_documents': 1, 'total_count': 1}
+{'token': 'paris', 'num_documents': 1, 'total_count': 1}]
+```
+
+* **token represents** the actual token that is stored in the index
+* **num_documents** represents the number of documents where tokens occurs at least one time.
+* **total_count** is the total number of occurrences in the index
+
 # Contribute
 Pull requests are welcome. If you come across any issues, please report them 
 at https://github.com/kaykay-dv/pocketsearch/issues

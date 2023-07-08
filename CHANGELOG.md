@@ -1,5 +1,8 @@
 # Change log
 
+## Version 0.11.0
+* Added .tokens() method (https://github.com/kaykay-dv/pocketsearch/issues/32)
+
 ## Version 0.10.0
 * Added typeahead convenience method
 * Added warning when invoking | operator on .search method
