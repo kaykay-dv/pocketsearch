@@ -1,11 +1,12 @@
 # pocketsearch
 pocketsearch is a pure-Python full text indexing search engine based on sqlite and the [FTS5](https://www.sqlite.org/fts5.html) extension. It provides
 
-- A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching
-- Support for multi-field indices including text, numeric and date search
-- Support for prefix and initial token queries
-- Support for highlightening search results and extracting snippets
-- Typeahead / Autocomplete features
+- A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
+- Multi-field indices using schemas including text, numeric and date search
+- Prefix, phrase and initial token queries
+- Boolean search queries
+- Highlightning search results and extracting snippets
+- Autocomplete features
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 Python 3.9, Python 3.10 and Python 3.11.
@@ -40,7 +41,7 @@ from pocketsearch import PocketSearch
 
 pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
-print(pocket_search.search(text="hello")[0].text)
+pocket_search.search(text="hello")[0].text
 Hello World !
 ```
 
@@ -76,7 +77,7 @@ from pocketsearch import PocketSearch
 
 pocket_search = PocketSearch()
 pocket_search.insert(text="Hello World !")
-print(pocket_search.search(text__allow_boolean="hello OR world")[0].text)
+pocket_search.search(text__allow_boolean="hello OR world")[0].text
 Hello World !
 ```
 
@@ -104,7 +105,7 @@ Hello World !
 By invoking the count method you get the number of search results:
 
 ```Python
-print(pocket_search.search(text__allow_boolean="hello OR world").count())
+pocket_search.search(text__allow_boolean="hello OR world").count()
 1
 ```
 
@@ -114,7 +115,7 @@ If you want to search for substrings, you can use prefix queries, by
 providing the allow_prefix lookup:
 
 ```Python
-print(pocket_search.search(text__allow_prefix="hel*")[0].text)
+pocket_search.search(text__allow_prefix="hel*")[0].text
 ```
 
 Please note, that prefix queries might get very slow as the index grows. To 
@@ -145,7 +146,7 @@ pocket_search.search(text='"this is" "a phrase"').count()
 Lookups can also be combined:
 
 ```Python
-print(pocket_search.search(text__allow_prefix__allow_boolean="hel* OR wor*")[0].text)
+pocket_search.search(text__allow_prefix__allow_boolean="hel* OR wor*")[0].text
 Hello World !
 ```
 
