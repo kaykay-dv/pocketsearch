@@ -1218,6 +1218,7 @@ class PocketSearch:
         END;
         '''
         self.cursor.execute(sql_table)
+        self.cursor.execute(sql_aux_table)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
