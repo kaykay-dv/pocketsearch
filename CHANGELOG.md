@@ -1,6 +1,6 @@
 # Change log
 
-## Version 0.9.1
+## Version 0.10.0
 * Added typeahead convenience method
 * Added warning when invoking | operator on .search method
 * Added debug log info to execute_sql statement
