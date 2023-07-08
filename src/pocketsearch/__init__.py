@@ -1366,17 +1366,19 @@ class PocketSearch:
         self.cursor.execute(sql, (rowid,))
         self.commit()
 
-    def typeahead(self,*args,**kwargs):
+    def autocomplete(self,*args,**kwargs):
         '''
         Constructs a query against a given field that performs auto-complete
-        (typeahead).
+        (thus, predicting what the rest of a word is a user types in).
         '''
         if len(kwargs)>1:
-            raise Query.QueryError("Only one field can be searched through typeahead.")
+            raise Query.QueryError("Only one field can be searched through autocomplete.")
         if len(kwargs)==0:
             # return all results
             return Query(search_instance=self,arguments=[],q_arguments=[])
         query = list(kwargs.values())[0]
+        if "__" in list(kwargs.keys())[0]:
+            raise Query.QueryError("Lookups are not allowed in autocomplete queries.")
         field = list(kwargs.keys())[0]
         query_components = query.split(" ")
         # quote, if necessary

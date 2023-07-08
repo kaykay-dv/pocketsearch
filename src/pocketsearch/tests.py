@@ -503,9 +503,9 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
 
-class TypeaheadTest(unittest.TestCase):
+class AutocompleteTest(unittest.TestCase):
     '''
-    Tests for typeahead method.
+    Tests for autocomplete method.
     '''    
 
     def setUp(self):
@@ -518,69 +518,76 @@ class TypeaheadTest(unittest.TestCase):
         ]:
             self.pocket_search.insert(text=elem)
 
-    def test_typeahead_multiple_keywords(self):
+    def test_autocomplete_multiple_keywords(self):
         '''
         Multiple keywords are not allowed
         '''
         with self.assertRaises(Query.QueryError):
-            self.pocket_search.typeahead(text="Ind",title="Ind")
+            self.pocket_search.autocomplete(text="Ind",title="Ind")
 
-    def test_typeahead_unknown_field(self):
+    def test_autocomplete_with_lookups(self):
+        '''
+        Multiple keywords are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.autocomplete(text__allow_prefix="Ind")
+
+    def test_autocomplete_unknown_field(self):
         '''
         Test if exception is correctly thrown
         '''
         with self.assertRaises(self.pocket_search.FieldError):
-            self.pocket_search.typeahead(product="Ind")
+            self.pocket_search.autocomplete(product="Ind")
 
     def test_no_kwarg_given(self):
         '''
         If no keyword argument is provided, all results are returned
         '''
-        self.assertEqual(self.pocket_search.typeahead().count(),4)
+        self.assertEqual(self.pocket_search.autocomplete().count(),4)
 
-    def test_typeahead_one_token(self):
+    def test_autocomplete_one_token(self):
         '''
-        Both typeahead queries should bring "Indiana Jones" as first result,
+        Both autocomplete queries should bring "Indiana Jones" as first result,
         as "Indiana" is at the beginning of the column, "Jones Indiana" should 
         come second.
         '''
-        self.assertEqual(self.pocket_search.typeahead(text="In")[0].text,"Indiana Jones")
-        self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
-        self.assertEqual(self.pocket_search.typeahead(text="Ind")[0].text,"Indiana Jones")
-        self.assertEqual(self.pocket_search.typeahead(text="In")[1].text,"Jones Indiana")
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[1].text,"Jones Indiana")
+        self.assertEqual(self.pocket_search.autocomplete(text="Ind")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.autocomplete(text="In")[1].text,"Jones Indiana")
 
     def test_order_by(self):
         '''
-        Test, if order by can be applied to typeahead.
+        Test, if order by can be applied to autocomplete.
         This should bring Jones Indiana as first result, as we sort by -rank
         '''
-        self.assertEqual(self.pocket_search.typeahead(text="In").order_by("-rank")[0].text,"Jones Indiana")
+        self.assertEqual(self.pocket_search.autocomplete(text="In").order_by("-rank")[0].text,"Jones Indiana")
 
-    def test_typeahead_two_tokens(self):
+    def test_autocomplete_two_tokens(self):
         '''
-        Test typeahead with 2 tokens
+        Test autocomplete with 2 tokens
         '''        
-        self.assertEqual(self.pocket_search.typeahead(text="Indiana J")[0].text,"Indiana Jones")
+        self.assertEqual(self.pocket_search.autocomplete(text="Indiana J")[0].text,"Indiana Jones")
 
-    def test_typeahead_including_and_or_operators(self):
+    def test_autocomplete_including_and_or_operators(self):
         '''
-        AND/OR keywords cannot be used in typeahead:
+        AND/OR keywords cannot be used in autocomplete:
         '''
-        self.assertEqual(self.pocket_search.typeahead(text="INDIANA OR JONES").count(),0)
-        self.assertEqual(self.pocket_search.typeahead(text="INDIANA AND JONES").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(text="INDIANA OR JONES").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(text="INDIANA AND JONES").count(),0)
 
-    def test_typeahead_three_tokens(self):
+    def test_autocomplete_three_tokens(self):
         '''
-        Test typeahead with 3 tokens
+        Test autocomplete with 3 tokens
         '''
-        self.assertEqual(self.pocket_search.typeahead(text="return of the")[0].text,"The return of the Jedi")
+        self.assertEqual(self.pocket_search.autocomplete(text="return of the")[0].text,"The return of the Jedi")
 
     def test_special_characters_in_query(self):
         '''
         Test if quoting, works. Special characters are not allowed 
-        in typeahead queries
+        in autocomplete queries
         '''
-        self.assertEqual(self.pocket_search.typeahead(1,text="*").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
 class CharacterTest(unittest.TestCase):
 
