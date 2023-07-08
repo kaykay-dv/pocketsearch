@@ -482,7 +482,7 @@ LOOKUPS = {
 
 }
 
-FTS_OPERATORS = ["-", ".","#"]
+FTS_OPERATORS = ["-", ".","#","NEAR"]
 
 class Filter(SQLQueryComponent):
     '''
@@ -1367,6 +1367,10 @@ class PocketSearch:
         self.commit()
 
     def typeahead(self,*args,**kwargs):
+        '''
+        Constructs a query against a given field that performs auto-complete
+        (typeahead).
+        '''
         if len(kwargs)>1:
             raise Query.QueryError("Only one field can be searched through typeahead.")
         if len(kwargs)==0:
@@ -1377,15 +1381,17 @@ class PocketSearch:
         query_components = query.split(" ")
         # quote, if necessary
         for idx,component in enumerate(query_components):
-            for operator in FTS_OPERATORS+["*"]:              
+            for operator in FTS_OPERATORS+["*","AND","OR","NEAR"]:          
                 if operator in component:
                     query_components[idx]='"%s"' % query_components[idx]
         if len(query_components)>1:
-            prefix_first_word=""
+            prefix=""
         else:
-            prefix_first_word="*"
-        query_components[0]="^%s%s OR %s" % (query_components[0],prefix_first_word,query_components[0])
-        query_components[len(query_components)-1]=query_components[-1:][0]+"*"
+            prefix="*"
+        query_components[0]="(^{first_word}{prefix} OR {first_word}{prefix})".format(first_word=query_components[0],
+                                                                                        prefix=prefix)
+        if len(query_components)>1:
+            query_components[len(query_components)-1]=query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
         return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
 

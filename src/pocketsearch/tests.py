@@ -187,6 +187,10 @@ class OperatorSearch(BaseTest):
         self.assertEqual(self.pocket_search.search(text='france AND paris').count(), 0)
         self.assertEqual(self.pocket_search.search(text='france OR paris').count(), 0)
 
+    def test_near_query(self):
+        # NEAR queries are not supported at the moment
+        self.assertEqual(self.pocket_search.search(text='NEAR(one, two)').count(),0) 
+
     def test_combined_lookups(self):
         self.assertEqual(self.pocket_search.search(text__allow_boolean__allow_prefix='france OR engl*').count(), 2)
 
@@ -557,6 +561,13 @@ class TypeaheadTest(unittest.TestCase):
         Test typeahead with 2 tokens
         '''        
         self.assertEqual(self.pocket_search.typeahead(text="Indiana J")[0].text,"Indiana Jones")
+
+    def test_typeahead_including_and_or_operators(self):
+        '''
+        AND/OR keywords cannot be used in typeahead:
+        '''
+        self.assertEqual(self.pocket_search.typeahead(text="INDIANA OR JONES").count(),0)
+        self.assertEqual(self.pocket_search.typeahead(text="INDIANA AND JONES").count(),0)
 
     def test_typeahead_three_tokens(self):
         '''
