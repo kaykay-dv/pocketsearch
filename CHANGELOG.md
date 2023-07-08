@@ -2,6 +2,8 @@
 
 ## Version 0.11.0
 * Added .tokens() method (https://github.com/kaykay-dv/pocketsearch/issues/32)
+* Added first implementation of SpellChecker
+* Added more logger.debug statement to plain SQL
 
 ## Version 0.10.0
 * Added typeahead convenience method

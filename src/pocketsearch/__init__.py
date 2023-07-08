@@ -1053,6 +1053,84 @@ class Query:
     def __iter__(self):
         return iter(self._query())
 
+class SpellChecker:
+    '''
+    A simplistic implementation of a spellchecker using a PocketSearch 
+    instance in the background. 
+    '''
+
+    class SpellCheckerSchema(Schema):
+        '''
+        Schema to store the spelling suggestions
+        '''
+        token = Text()
+        bigrams = Text(index=True)
+        bigrams_length = Int(index=True)
+
+    def __init__(self,search_instance):
+        self.search_instance = search_instance
+        self.spell_checker = PocketSearch(search_instance.db_name,
+                                          index_name="spellcheck_%s" % search_instance.index_name,
+                                          writeable=search_instance.writeable,
+                                          schema=self.SpellCheckerSchema,
+                                          connection=search_instance.connection,
+                                          write_buffer_size=1000)
+
+    def _generate_bigrams(self,token,operator=" "):
+        bigrams = []
+        for i in range(len(token) - 1):
+            bigram = token[i:i+2]
+            bigrams.append(bigram)
+        return operator.join(bigrams)
+
+    def _levenshtein_distance(self,word1, word2):
+        m, n = len(word1), len(word2)
+
+        # Create a distance matrix
+        distance = [[0] * (n + 1) for _ in range(m + 1)]
+
+        # Initialize the first row and column of the matrix
+        for i in range(m + 1):
+            distance[i][0] = i
+        for j in range(n + 1):
+            distance[0][j] = j
+
+        # Calculate the minimum edit distance
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if word1[i - 1] == word2[j - 1]:
+                    distance[i][j] = distance[i - 1][j - 1]
+                else:
+                    distance[i][j] = min(
+                        distance[i - 1][j] + 1,  # Deletion
+                        distance[i][j - 1] + 1,  # Insertion
+                        distance[i - 1][j - 1] + 1  # Substitution
+                    )
+        return distance[m][n]
+
+
+    def build(self):
+        '''
+        Walk through the token of the given search_instance and populate the 
+        spell checking index. This methods clear the spelling index and 
+        builds it entirely from scratch again. 
+        '''
+        self.spell_checker.delete_all()
+        for token_info in self.search_instance.tokens():
+            token=token_info.get("token")
+            print(token)
+            bigrams = self._generate_bigrams(token)
+            self.spell_checker.insert(token=token,bigrams=bigrams,bigrams_length=len(bigrams))
+
+    def suggest(self,token):
+        '''
+        Suggest possible spelling corrections for the given token 
+        and return them as plain list
+        '''
+        results=[]
+        for result in self.spell_checker.search(bigrams__allow_boolean=self._generate_bigrams(token," OR "))[0:25]:
+            results.append((result.token,self._levenshtein_distance(result.token,token)))
+        return sorted(results, key=lambda x: x[1]) 
 
 class PocketSearch:
     '''
@@ -1098,9 +1176,13 @@ class PocketSearch:
                  index_name="documents",
                  schema=DefaultSchema,
                  writeable=False,
-                 write_buffer_size=1):
+                 write_buffer_size=1,
+                 connection=None):
         self.db_name = db_name
-        self.connection = self._open()
+        if connection is None:
+            self.connection = self._open()
+        else:
+            self.connection = connection
         self.cursor = self.connection.cursor()
         self.schema = schema(index_name)
         self.db_name = db_name
@@ -1201,7 +1283,7 @@ class PocketSearch:
         CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s %s);
         ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options(), self._create_prefix_index())
         # aux tables
-        sql_aux_table = "CREATE VIRTUAL TABLE %s_fts_v USING fts5vocab('%s_fts', 'row');" % (index_name,index_name)        
+        sql_aux_table = "CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts_v USING fts5vocab('%s_fts', 'row');" % (index_name,index_name)        
         # Trigger definitions:
         sql_trigger_insert = '''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
@@ -1225,7 +1307,7 @@ class PocketSearch:
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
         # create standard indices
         for field in default_index_fields:
-            self.cursor.execute("CREATE INDEX idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+            self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
 
     def tokens(self):
         sql = "select term as token, doc as num_documents, cnt as total_count from %s_fts_v order by total_count desc" % self.index_name
@@ -1234,6 +1316,8 @@ class PocketSearch:
         while row is not None:
             yield {"token":row["token"],"num_documents":row["num_documents"],"total_count":row["total_count"]}
             row = self.cursor.fetchone()
+
+
 
     def get_arguments(self, kwargs, for_search=True):
         '''
@@ -1330,6 +1414,7 @@ class PocketSearch:
                                                    joined_fields,
                                                    ",".join(placeholder_values))
         try:
+            logger.debug(sql)
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
@@ -1341,6 +1426,7 @@ class PocketSearch:
         '''
         sql = "select * from %s  where id=?" % (self.schema.name,)
         fields = self.schema.get_fields()
+        logger.debug(sql)
         doc = self.cursor.execute(sql, (rowid,)).fetchone()
         if doc is None:
             raise self.DocumentDoesNotExist()
@@ -1362,6 +1448,7 @@ class PocketSearch:
         for f in arguments:
             stmt.append("%s=?" % f)
         sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
+        logger.debug(sql)
         self.cursor.execute(sql, values)
         if self.write_buffer > self.write_buffer_size:
             self.write_buffer=0
@@ -1375,7 +1462,18 @@ class PocketSearch:
         '''
         self.assure_writeable()
         sql = "delete from %s where id = ?" % (self.schema.name)
+        logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
+        self.commit()
+
+    def delete_all(self):
+        '''
+        Delete entire index in database
+        '''
+        self.assure_writeable()
+        sql = "delete from %s" % self.schema.name
+        logger.debug(sql)
+        self.cursor.execute(sql)
         self.commit()
 
     def autocomplete(self,*args,**kwargs):

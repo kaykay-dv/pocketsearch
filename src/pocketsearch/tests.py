@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q
+from pocketsearch import FileSystemReader, Text, PocketSearch, SpellChecker, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -167,6 +167,11 @@ class TokenInfoTest(BaseTest):
     Test accessing meta data of the index
     '''
 
+    class SpellChecker(Schema):
+
+        token = Text()
+        bigrams = Text(index=True)
+
     def test_get_tokens(self):
         '''
         Try to access the list of tokens
@@ -185,6 +190,19 @@ class TokenInfoTest(BaseTest):
         '''
         p = PocketSearch()
         self.assertEqual(len(list(p.tokens())),0)
+
+class SpellCheckerTest(BaseTest):
+
+    def test_suggest_spelling_corrections(self):
+        spell_checker = SpellChecker(search_instance=self.pocket_search)
+        spell_checker.build()
+        eq = self.assertEqual
+        #"The fox jumped over the fence. Now he is beyond the fence.",
+        #"England is in Europe.",
+        #"Paris is the captial of france.",
+        eq(spell_checker.suggest("franz")[0][0],"france")
+        eq(spell_checker.suggest("ehngland")[0][0],"england")
+        print(spell_checker.suggest("europa"))
 
 class OperatorSearch(BaseTest):
     '''
@@ -517,19 +535,38 @@ class IDFieldTest(unittest.TestCase):
 class IndexUpdateTests(BaseTest):
 
     def test_get_entry(self):
+        '''
+        Test get document by id
+        '''
         document = self.pocket_search.get(rowid=1)
         self.assertEqual(document.id, 1)
 
     def test_get_non_existing_entry(self):
+        '''
+        Getting a document with a non-existing id, should result in an 
+        exception
+        '''
         with self.assertRaises(self.pocket_search.DocumentDoesNotExist):
             self.pocket_search.get(rowid=1000)
 
     def test_delete_entry(self):
+        '''
+        Entry if "fox" should have disappeared:
+        '''
         self.pocket_search.delete(rowid=1)
-        # Entry if "fox" should have disappeared:
         self.assertEqual(self.pocket_search.search(text="fox").count(), 0)
 
+    def test_delete_all(self):
+        '''
+        Should result in an empty database
+        '''
+        self.pocket_search.delete_all()
+        self.assertEqual(self.pocket_search.search().count(), 0)
+
     def test_update_entry(self):
+        '''
+        Test updating an entry
+        '''
         self.pocket_search.update(rowid=1, text="The DOG jumped over the fence. Now he is beyond the fence.")
         self.assertEqual(self.pocket_search.search(text="fox").count(), 0)
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
@@ -632,6 +669,8 @@ class CharacterTest(unittest.TestCase):
             "(bracket )",
             "(bracket]",
             "U.S.A.",
+            "I50.1.3",
+            "I50 13",            
             "ˌrʌnɚ",
             "'x'"
         ]
@@ -646,6 +685,9 @@ class CharacterTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.search(text="break even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="break-even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="breakeven").count(), 0)
+
+    def test_search_punctuation(self):
+        self.assertEqual(self.pocket_search.search(text__allow_prefix="I50.*").count(), 1)
 
     def test_search_special_characters(self):
         self.assertEqual(self.pocket_search.search(text="äö").count(), 1)

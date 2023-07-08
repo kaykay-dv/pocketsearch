@@ -346,6 +346,13 @@ To delete a document, use:
 pocket_search.delete(rowid=1)
 ```
 
+If you want to delete the entire index use:
+
+```Python
+pocket_search.delete_all()
+```
+
+
 ## Using index readers to insert data
 
 Normally we have a data source at hand (e.g. files in a file system or a source database) that we use to read 
