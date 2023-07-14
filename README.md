@@ -498,6 +498,8 @@ Following tokenizers are available:
     * The **ascii** tokenizer, which assumes all characters outside of the ASCII codepoint range (0-127) are to be treated as token characters.
     * The **porter** tokenizer, which implements the porter stemming algorithm. 
 
+For more details, please refer to the FTS5 documentation under https://www.sqlite.org/fts5.html#tokenizers 
+
 If you want to change the tokenizer, you can do so by overriding the Meta class of a schema:
 
 
