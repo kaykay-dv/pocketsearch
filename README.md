@@ -274,6 +274,30 @@ Moreover field names may not be composed of reserved SQL keywords.
 > **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document. The ID field is used to delete or 
 update documents.
 
+## Tokenizers
+
+Tokenizers define how a document is split into individual tokens, thus defining how a document is split into 
+individual words. Tokenization is completley handled by the FTS5 engine. Currently there is no way to 
+provide your own tokenizers unless you are willing to do a C implementation writing an extension for sqlite3.
+Currently only the Unicode61 tokenizer is supported by the library which can be configured using the Meta 
+class of a Schema:
+
+
+```Python
+from pocketsearch import Schema, PocketSearch
+
+class FileContents(Schema):
+
+    class Meta:
+        tokenizer = Unicode61(remove_diacritics="1",categories=None,tokenchars=None,separators=None)
+
+    text = Text(index=True)
+    filename = Text(is_id_field=True)
+```
+
+When arguments in the Unicode61 constructor are set to None, the FTS5 defaults are assumed. For a complete 
+reference of available options consult https://www.sqlite.org/fts5.html#unicode61_tokenizer
+
 ## Queries on multi-field indices
 
 Once the schema is created, you can query multiple fields:
@@ -485,30 +509,6 @@ Internally, it:
 * Creates two tables, one named "document" and one virtual table "document_idx" - the latter holds the full-text-search enabled files.
 * The document_idx table is populated through triggers on the document table. 
 * It uses the unicode61 tokenizer as default.
-
-# Tokenizers
-
-Tokenizers define how a document is split into individual tokens, thus defining how a document is split into 
-individual words. Tokenization is completley handled by the FTS5 engine. Currently there is no way to 
-provide your own tokenizers unless you are willing to do a C implementation writing an extension for sqlite3.
-Currently only the Unicode61 tokenizer is supported by the library which can be configured using the Meta 
-class of a Schema:
-
-
-```Python
-from pocketsearch import Schema, PocketSearch
-
-class FileContents(Schema):
-
-    class Meta:
-        tokenizer = Unicode61(remove_diacritics="1",categories=None,tokenchars=None,separators=None)
-
-    text = Text(index=True)
-    filename = Text(is_id_field=True)
-```
-
-When arguments in the Unicode61 constructor are set to None, the FTS5 defaults are assumed. For a complete 
-reference of available options consult https://www.sqlite.org/fts5.html#unicode61_tokenizer
 
 # Multiple indices in one database
 
