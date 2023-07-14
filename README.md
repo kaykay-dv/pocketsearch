@@ -486,6 +486,18 @@ Internally, it:
 * The document_idx table is populated through triggers on the document table. 
 * It uses the unicode61 tokenizer as default.
 
+# Tokenizers
+
+Tokenizers define how a document is split into individual tokens, thus defining how a document is split into 
+individual words. Tokenization is completley handled by the FTS5 engine. Currently there is no way to 
+provide your own tokenizers unless you are willing to do a C implementation writing an extension for sqlite3.
+
+Following tokenizers are available:
+
+    * The **unicode61** tokenizer, based on the Unicode 6.1 standard. This is the default.
+    * The **ascii** tokenizer, which assumes all characters outside of the ASCII codepoint range (0-127) are to be treated as token characters.
+    * The **porter** tokenizer, which implements the porter stemming algorithm. 
+
 If you want to change the tokenizer, you can do so by overriding the Meta class of a schema:
 
 
@@ -501,7 +513,7 @@ class FileContents(Schema):
         If a value is set to None, we leave it up to sqlite to
         set proper defaults.
         '''
-        sqlite_tokenize = "unicode61" # change to available tokenizer of your choice
+        sqlite_tokenize = "unicode61" # either unicode61, ascii or porter
         sqlite_remove_diacritics = None
         sqlite_categories = None
         sqlite_tokenchars = None
