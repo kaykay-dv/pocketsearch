@@ -494,9 +494,9 @@ provide your own tokenizers unless you are willing to do a C implementation writ
 
 Following tokenizers are available:
 
-    * The **unicode61** tokenizer, based on the Unicode 6.1 standard. This is the default.
-    * The **ascii** tokenizer, which assumes all characters outside of the ASCII codepoint range (0-127) are to be treated as token characters.
-    * The **porter** tokenizer, which implements the porter stemming algorithm. 
+* The **unicode61** tokenizer, based on the Unicode 6.1 standard. This is the default.
+* The **ascii** tokenizer, which assumes all characters outside of the ASCII codepoint range (0-127) are to be treated as token characters.
+* The **porter** tokenizer, which implements the porter stemming algorithm. 
 
 For more details, please refer to the FTS5 documentation under https://www.sqlite.org/fts5.html#tokenizers 
 
