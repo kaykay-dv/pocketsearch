@@ -659,6 +659,9 @@ class AutocompleteTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
 class CharacterTest(unittest.TestCase):
+    '''
+    Tokenization-related tests
+    '''
 
     def setUp(self):
         self.data = [
@@ -680,9 +683,15 @@ class CharacterTest(unittest.TestCase):
             self.pocket_search.insert(text=elem)
 
     def test_hash(self):
+        '''
+        Test searching for hash symbols.
+        '''
         self.assertEqual(self.pocket_search.search(text="#").count(), 0)
 
     def test_search_hyphen(self):
+        '''
+        Test search for hyphen symbols. 
+        '''
         self.assertEqual(self.pocket_search.search(text="break even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="break-even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="breakeven").count(), 0)
@@ -701,21 +710,39 @@ class CharacterTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.search(text="äö").count(), 2)
 
     def test_search_special_characters2(self):
+        '''
+        Another test covering search for characters with diacritics
+        '''
         self.assertEqual(self.pocket_search.search(text="bleɪd").count(), 1)
 
     def test_search_brackets(self):
+        '''
+        Test search for a string that is wrapped in brackets.
+        '''
         self.assertEqual(self.pocket_search.search(text="bracket").count(), 3)
 
     def test_search_punctuation1(self):
+        '''
+        Test searching for abbrevated terms.
+        '''
         self.assertEqual(self.pocket_search.search(text="u s a").count(), 1)
 
     def test_search_punctuation2(self):
+        '''
+        The search for USA should fail in this case.
+        '''
         self.assertEqual(self.pocket_search.search(text="usa").count(), 0)
 
     def test_search_punctuation3(self):
+        '''
+        The search for U.S.A. instead should work.
+        '''
         self.assertEqual(self.pocket_search.search(text="u.s.a").count(), 1)
 
     def test_quoting(self):
+        '''
+        Quotes should be removed from the tokens, so this should work
+        '''
         self.assertEqual(self.pocket_search.search(text="x").count(), 1)
 
 
