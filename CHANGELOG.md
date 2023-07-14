@@ -1,9 +1,18 @@
 # Change log
 
 ## Version 0.11.0
-* Added .tokens() method (https://github.com/kaykay-dv/pocketsearch/issues/32)
 * Added first implementation of SpellChecker
-* Added more logger.debug statement to plain SQL
+* Fixed https://github.com/kaykay-dv/pocketsearch/issues/36
+* Fixed https://github.com/kaykay-dv/pocketsearch/issues/35
+* Introduced Tokenizer classes to setup FTS5 supported tokenizers
+* Added .tokens() method (https://github.com/kaykay-dv/pocketsearch/issues/32)
+* Added more logger.debug statements to plain SQL
+* Added logger.debug statements for table creation
+
+**Deprecated**:
+
+* Versions < 0.11 had buggy sqlite_* meta options. These have been removed. Tokenizers can now be 
+declared through dedicated classes.
 
 ## Version 0.10.0
 * Added typeahead convenience method

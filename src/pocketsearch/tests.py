@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, SpellChecker, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q
+from pocketsearch import FileSystemReader, Text, PocketSearch, SpellChecker, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -657,6 +657,30 @@ class AutocompleteTest(unittest.TestCase):
         in autocomplete queries
         '''
         self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
+
+class DiacriticsTests(unittest.TestCase):
+
+    class Schema(Schema):
+        '''
+        Schema with one field, diacritics should NOT be removed
+        '''
+        class Meta:
+            '''
+            Meta information for index
+            '''
+            tokenizer = Unicode61(remove_diacritics="0")
+
+        text = Text(index=True)
+
+    def setUp(self):
+        self.pocket_search = PocketSearch(schema=self.Schema)
+
+    def test_diacritics(self):
+        '''
+        Test if search recognizes characters with diacritics
+        '''
+        self.pocket_search.insert(text="äö")
+        self.assertEqual(self.pocket_search.search(text="ao").count(),0)
 
 class CharacterTest(unittest.TestCase):
     '''

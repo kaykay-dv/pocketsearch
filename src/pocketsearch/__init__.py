@@ -72,6 +72,40 @@ class Timer:
         s = s+"----\n"
         return s
 
+class Tokenizer(abc.ABC):
+    '''
+    Base class for tokenizers
+    '''
+
+    def __init__(self,name):
+        self.name=name
+        self.properties = []
+
+    def add_property(self,name,value):
+        if value is not None:
+            self.properties.append(self.Property(name,value))
+
+    class Property:
+
+        def __init__(self,name,value):
+            self.name = name
+            self.value = value
+
+    def to_sql(self):
+        properties=" ".join(["%s %s" % (p.name,p.value) for p in self.properties])
+        return "tokenize=\"{name} {properties}\"".format(name=self.name,properties=properties)
+    
+class Unicode61(Tokenizer):
+    '''
+    Unicode61 tokenizer (see https://www.sqlite.org/fts5.html for more details)
+    '''
+    
+    def __init__(self,remove_diacritics="1",categories=None,tokenchars=None,separators=None):
+        super().__init__("unicode61")
+        self.add_property("remove_diacritics","'%s'" % remove_diacritics)
+        self.add_property("categories",categories)
+        self.add_property("tokenchars",tokenchars)
+        self.add_property("separators",separators)
 
 class Field(abc.ABC):
     '''
@@ -223,11 +257,7 @@ class Schema:
         If a value is set to None, we leave it up to sqlite to
         set proper defaults.
         '''
-        sqlite_tokenize = "unicode61"
-        sqlite_remove_diacritics = None
-        sqlite_categories = None
-        sqlite_tokenchars = None
-        sqlite_separators = None
+        tokenizer = Unicode61()
         prefix_index = None
 
     RESERVED_KEYWORDS = [
@@ -253,6 +283,16 @@ class Schema:
 
     def __init__(self, name):
         self._meta = self.Meta()
+        try:
+            self._meta.prefix_index
+        except AttributeError:
+            # set reasonable default
+            self._meta.prefix_index = None
+        try:
+            self._meta.tokenizer
+        except AttributeError:
+            # set reasonable default
+            self._meta.tokenizer = Unicode61()            
         self.name = name
         self.fields = {}
         self.field_index = {} # required by some SQL functions, e.g. highlight
@@ -345,7 +385,6 @@ class Document:
 
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f, getattr(self, f)) for f in self.fields])
-
 
 class SQLQueryComponent(abc.ABC):
     '''
@@ -1237,16 +1276,19 @@ class PocketSearch:
     def _create_additional_options(self):
         '''
         Reads the options defined in the meta class of the schema to provide additional information
-        for the FTS table creation.
+        for the FTS table creation, specifically the tokenization process.
         '''
-        options = []
         m = self.schema._meta
-        for option in dir(m):
-            if option.startswith("sqlite") and getattr(m, option) is not None:
-                options.append("%s=\"%s\"" % (option.split("sqlite_")[1:][0], getattr(m, option)))
-        if len(options) == 0:
-            return ""
-        return "," + ",".join(options)
+        return ", " + m.tokenizer.to_sql()
+        # REWRITE
+        #options = []
+        #m = self.schema._meta
+        #for option in dir(m):
+        #    if option.startswith("sqlite") and getattr(m, option) is not None:
+        #        options.append("%s=\"%s\"" % (option.split("sqlite_")[1:][0], getattr(m, option)))
+        #if len(options) == 0:
+        #    return ""
+        #return "," + ",".join(options)
 
     def _create_prefix_index(self):
         prefix_index = self.schema._meta.prefix_index
@@ -1301,6 +1343,7 @@ class PocketSearch:
         '''
         self.cursor.execute(sql_table)
         self.cursor.execute(sql_aux_table)
+        logger.debug(sql_virtual_table)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
@@ -1575,3 +1618,5 @@ class FileSystemReader(IndexReader):
                         file_path = os.path.join(root, file)
                         with open(file_path, 'r',encoding=self.encoding) as file:
                             yield(self.file_to_dict(file_path, file))
+
+

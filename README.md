@@ -491,16 +491,8 @@ Internally, it:
 Tokenizers define how a document is split into individual tokens, thus defining how a document is split into 
 individual words. Tokenization is completley handled by the FTS5 engine. Currently there is no way to 
 provide your own tokenizers unless you are willing to do a C implementation writing an extension for sqlite3.
-
-Following tokenizers are available:
-
-* The **unicode61** tokenizer, based on the Unicode 6.1 standard. This is the default.
-* The **ascii** tokenizer, which assumes all characters outside of the ASCII codepoint range (0-127) are to be treated as token characters.
-* The **porter** tokenizer, which implements the porter stemming algorithm. 
-
-For more details, please refer to the FTS5 documentation under https://www.sqlite.org/fts5.html#tokenizers 
-
-If you want to change the tokenizer, you can do so by overriding the Meta class of a schema:
+Currently only the Unicode61 tokenizer is supported by the library which can be configured using the Meta 
+class of a Schema:
 
 
 ```Python
@@ -509,21 +501,14 @@ from pocketsearch import Schema, PocketSearch
 class FileContents(Schema):
 
     class Meta:
-        '''
-        Additional options for setting up FTS5
-        See https://www.sqlite.org/fts5.html for more information.
-        If a value is set to None, we leave it up to sqlite to
-        set proper defaults.
-        '''
-        sqlite_tokenize = "unicode61" # either unicode61, ascii or porter
-        sqlite_remove_diacritics = None
-        sqlite_categories = None
-        sqlite_tokenchars = None
-        sqlite_separators = None    
+        tokenizer = Unicode61(remove_diacritics="1",categories=None,tokenchars=None,separators=None)
 
     text = Text(index=True)
     filename = Text(is_id_field=True)
 ```
+
+When arguments in the Unicode61 constructor are set to None, the FTS5 defaults are assumed. For a complete 
+reference of available options consult https://www.sqlite.org/fts5.html#unicode61_tokenizer
 
 # Multiple indices in one database
 
