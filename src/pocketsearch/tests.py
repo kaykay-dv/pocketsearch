@@ -663,6 +663,7 @@ class CharacterTest(unittest.TestCase):
     def setUp(self):
         self.data = [
             "äö",
+            "ao",
             "break-even",
             "bleɪd",
             "(bracket)",
@@ -687,10 +688,17 @@ class CharacterTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.search(text="breakeven").count(), 0)
 
     def test_search_punctuation(self):
-        self.assertEqual(self.pocket_search.search(text__allow_prefix="I50.*").count(), 1)
+        '''
+        As punctuation is removed there is no difference between a search for I50. and I50
+        '''
+        self.assertEqual(self.pocket_search.search(text__allow_prefix="I50.*").count(), 2)
 
     def test_search_special_characters(self):
-        self.assertEqual(self.pocket_search.search(text="äö").count(), 1)
+        '''
+        Test default behavior. By default, diacritics are removed from all Latin script characters.
+        This means, that a search for äö is equivalent to a search for ao.
+        '''
+        self.assertEqual(self.pocket_search.search(text="äö").count(), 2)
 
     def test_search_special_characters2(self):
         self.assertEqual(self.pocket_search.search(text="bleɪd").count(), 1)
