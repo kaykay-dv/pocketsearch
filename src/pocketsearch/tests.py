@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, SpellChecker, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
+from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -167,11 +167,6 @@ class TokenInfoTest(BaseTest):
     Test accessing meta data of the index
     '''
 
-    class SpellChecker(Schema):
-
-        token = Text()
-        bigrams = Text(index=True)
-
     def test_get_tokens(self):
         '''
         Try to access the list of tokens
@@ -190,32 +185,6 @@ class TokenInfoTest(BaseTest):
         '''
         p = PocketSearch()
         self.assertEqual(len(list(p.tokens())),0)
-
-class SpellCheckerTest(BaseTest):
-    '''
-    Tests for spell checking class
-    '''
-
-    def test_suggest_spelling_corrections(self):
-        '''
-        Performs basic tests on spell checking functions
-        '''
-        spell_checker = SpellChecker(search_instance=self.pocket_search)
-        spell_checker.build()
-        self.assertEqual(spell_checker.suggest("franz")[0][0],"france")
-        self.assertEqual(spell_checker.suggest("ehngland")[0][0],"england")
-
-    def test_suggest_no_corrections_found(self):  
-        '''
-        Search for a string that does not exist, this should result in 
-        no spell checkings at all
-        '''   
-        pocketsearch = PocketSearch()
-        pocketsearch.insert(text="U.S.A.")
-        print(pocketsearch.search(text="u.s.a").count())
-        spell_checker = SpellChecker(search_instance=pocketsearch)
-        spell_checker.build() 
-        print(spell_checker.suggest("u.s.a"))
 
 class OperatorSearch(BaseTest):
     '''

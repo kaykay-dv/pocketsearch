@@ -1,7 +1,6 @@
 # Change log
 
 ## Version 0.11.0
-* Added first implementation of SpellChecker
 * Fixed https://github.com/kaykay-dv/pocketsearch/issues/36
 * Fixed https://github.com/kaykay-dv/pocketsearch/issues/35
 * Introduced Tokenizer classes to setup FTS5 supported tokenizers
