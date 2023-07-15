@@ -59,6 +59,21 @@ list(pocket_search.tokens())
 * **num_documents** represents the number of documents where tokens occurs at least one time.
 * **total_count** is the total number of occurrences in the index.
 
+## Prefix indices
+
+To speed up prefix queries, you can setup prefix indices:
+
+```Python
+    class PrefixIndex1(Schema):
+        '''
+        Simple schema that sets a prefix index for 
+        2,3 and 4 characters
+        '''
+        class Meta:
+            prefix_index=[2,3,4]
+        body = Text(index=True)
+```
+
 ## Behind the scenes: how searching works
 
 pocketsearch uses the FTS5 extension of sqlite. More information can be found here:
@@ -70,5 +85,16 @@ Internally, it:
 * The document_idx table is populated through triggers on the document table. 
 * It uses the unicode61 tokenizer as default.
 
+## Optimizing the index for query performance
+If you have inserted a large volume of new documents, it might be sensible 
+to optimize the index for query performance. This can be achieved by 
+running VACUUM ANALYSE on the database, pocketsearch has a convenience 
+method for this, that can be run e.g. after the indexing process is 
+complete:
+
+```Python
+pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
+pocket_search.optimize()
+```
 
 
