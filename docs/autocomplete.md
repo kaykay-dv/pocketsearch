@@ -19,4 +19,4 @@ Some rules apply when using the autocomplete method:
 * Look ups are not allowed (e.g. allow_boolean, etc.)
 * Special operators are not allowed (e.g. ^ or *)
 * You can only provide one field as keyword argument
-* .autocomplete returns a Query objects, thus you can apply slicing, counting, order_by and highlighting as described above.
+* .autocomplete returns Query objects, thus you can apply slicing, counting, order_by and highlighting as described above. By default 10 suggestions are made.
