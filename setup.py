@@ -15,6 +15,7 @@ setuptools.setup(
     project_urls = {
         "Bug Tracker": "https://github.com/kaykay-dv/pocketsearch/issues",
         "Change log" : "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md"
+        "Documentation" : "https://pocketsearch.readthedocs.io/"
     },
     classifiers = [
         "Development Status :: 4 - Beta",
