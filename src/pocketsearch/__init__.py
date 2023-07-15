@@ -1318,14 +1318,17 @@ class PocketSearch:
                 fields.append(field)
         if len(index_fields) == 0:
             raise IndexError("Schema does not have a single indexable FTS field.")
-        sql_table = '''
-        CREATE TABLE IF NOT EXISTS %s(%s)
-        ''' % (index_name, ", ".join([field.to_sql() for field in fields]))
-        sql_virtual_table = '''
-        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s %s);
-        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options(), self._create_prefix_index())
+        standard_fields = ", ".join([field.to_sql() for field in fields])
+        fts_fields = ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        additional_options = self._create_additional_options()
+        prefix_index = self._create_prefix_index()
+        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
+        sql_virtual_table = f'''
+        CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
+            content='{index_name}', content_rowid='id' {additional_options} {prefix_index});
+        '''
         # aux tables
-        sql_aux_table = "CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts_v USING fts5vocab('%s_fts', 'row');" % (index_name,index_name)        
+        sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
         sql_trigger_insert = '''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
@@ -1343,6 +1346,7 @@ class PocketSearch:
         '''
         self.cursor.execute(sql_table)
         self.cursor.execute(sql_aux_table)
+        logger.debug(sql_table)
         logger.debug(sql_virtual_table)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
@@ -1353,6 +1357,9 @@ class PocketSearch:
             self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
 
     def tokens(self):
+        '''
+        Return token statistics on the current index
+        '''
         sql = "select term as token, doc as num_documents, cnt as total_count from %s_fts_v order by total_count desc" % self.index_name
         self.cursor.execute(sql)
         row = self.cursor.fetchone()
