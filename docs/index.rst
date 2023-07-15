@@ -6,7 +6,8 @@
 Welcome to pocketsearch's documentation!
 ========================================
 
-pocketsearch is a pure-Python full text indexing search library based on sqlite and its `FTS5 extension <https://www.sqlite.org/fts5.html>`_ 
+pocketsearch is a pure-Python full text indexing search library based on sqlite and its `FTS5 extension <https://www.sqlite.org/fts5.html>`_ .
+
 It provides
 
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
