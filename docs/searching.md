@@ -55,13 +55,28 @@ the results are either accessed through iteration, indexing or slicing.
 Thus,
 
 ```Python
-# No search is performed
+# No search is performed when assigning 
+# the results to a variable
 results = pocket_search.search(text="Hello")
 # When accessing the first result, 
 # the query is performed in the database:
 results[0].text
 'Hello World !'
 ```
+
+### Counting results
+
+In order to count results, invoke the .count method on the results:
+
+```Python
+# Return the number of documents matching the given query:
+pocket_search.search(text="Hello").count()
+```
+
+> **_NOTE:_** Using Python's built-in **len** function will not return 
+the actual number of search results. By default the number of results 
+is limited to 10 (unless you increase this by slicing), so len will 
+return the size of the slicing window.
 
 ## Prefix queries
 
