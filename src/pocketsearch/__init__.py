@@ -107,7 +107,7 @@ class Unicode61(Tokenizer):
     
     VALID_DIACRITICS = ["0","1","2"]
 
-    def __init__(self,remove_diacritics="1",categories=None,tokenchars=None,separators=None):
+    def __init__(self,remove_diacritics="2",categories=None,tokenchars=None,separators=None):
         super().__init__("unicode61")
         if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
             raise self.TokenizerError("Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
@@ -301,7 +301,7 @@ class Schema:
             self._meta.tokenizer
         except AttributeError:
             # set reasonable default
-            self._meta.tokenizer = Unicode61()            
+            self._meta.tokenizer = Unicode61()  
         self.name = name
         self.fields = {}
         self.field_index = {} # required by some SQL functions, e.g. highlight
