@@ -192,17 +192,30 @@ class TokenInfoTest(BaseTest):
         self.assertEqual(len(list(p.tokens())),0)
 
 class SpellCheckerTest(BaseTest):
+    '''
+    Tests for spell checking class
+    '''
 
     def test_suggest_spelling_corrections(self):
+        '''
+        Performs basic tests on spell checking functions
+        '''
         spell_checker = SpellChecker(search_instance=self.pocket_search)
         spell_checker.build()
-        eq = self.assertEqual
-        #"The fox jumped over the fence. Now he is beyond the fence.",
-        #"England is in Europe.",
-        #"Paris is the captial of france.",
-        eq(spell_checker.suggest("franz")[0][0],"france")
-        eq(spell_checker.suggest("ehngland")[0][0],"england")
-        print(spell_checker.suggest("europa"))
+        self.assertEqual(spell_checker.suggest("franz")[0][0],"france")
+        self.assertEqual(spell_checker.suggest("ehngland")[0][0],"england")
+
+    def test_suggest_no_corrections_found(self):  
+        '''
+        Search for a string that does not exist, this should result in 
+        no spell checkings at all
+        '''   
+        pocketsearch = PocketSearch()
+        pocketsearch.insert(text="U.S.A.")
+        print(pocketsearch.search(text="u.s.a").count())
+        spell_checker = SpellChecker(search_instance=pocketsearch)
+        spell_checker.build() 
+        print(spell_checker.suggest("u.s.a"))
 
 class OperatorSearch(BaseTest):
     '''
@@ -671,6 +684,33 @@ class Unicode61Tests(unittest.TestCase):
             # not allowed, values must be strings
             Unicode61(remove_diacritics=2)     
 
+    def test_tokenize(self):
+        '''
+        Basic test to see if the tokenize method can 
+        simulate the tokenization process of FTS5's unicode61 tokenizer
+        '''
+        under_test = "(This) 'is' a-toke2nize;te^st."
+        tokens = Unicode61().tokenize(under_test)
+        self.assertEqual(len(tokens),6)
+
+    def test_additional_separator(self):
+        '''
+        Test if the tokenize method respects additional separators
+        '''
+        under_test = "(This)X'is'Ya-toke2nizeZtest."
+        tokens = Unicode61(separators="XYZ").tokenize(under_test)
+        self.assertEqual(len(tokens),5)        
+
+    def test_tokenize_custom_categories_and_categories(self):
+        '''
+        Customize the categories and separators argument
+        '''
+        under_test = "(This)X'is'Ya-toke42nizeZtest."
+        tokens = Unicode61(categories="N*",separators="4").tokenize(under_test)
+        # this indicates that only numbers are valid tokens, thus 
+        # everything else is considered a separator character
+        self.assertEqual(len(tokens),1)
+        self.assertEqual(tokens[0],"2")     
 
 class TokenizerTests(unittest.TestCase):
     '''
@@ -732,6 +772,14 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(text="Y").count(),0)
         self.assertEqual(pocket_search.search(text="Z").count(),0)
         self.assertEqual(pocket_search.search(text="D").count(),1)
+
+    def test_mix_categories_and_separators(self):
+        under_test = "(This)X'is'Ya-toke42nizeZtest."
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*",separators="4")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text=under_test)
+        for item in pocket_search.tokens():
+            print(item)
 
 class CharacterTest(unittest.TestCase):
     '''

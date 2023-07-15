@@ -176,7 +176,7 @@ There are 2 methods to support this in pocketsearch:
 
 ```Python
 pocket_search.search(text="hello").highlight("text")[0].text
-*Hello* World !
+'*Hello* World !'
 ```
 
 The keyword arguments marker_start and marker_end allow you to control how highlighting is done:

@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import sqlite3
+import unicodedata
 import os
 import time
 import abc
@@ -84,11 +85,11 @@ class Tokenizer(abc.ABC):
 
     def __init__(self,name):
         self.name=name
-        self.properties = []
+        self.properties = {}
 
     def add_property(self,name,value):
         if value is not None:
-            self.properties.append(self.Property(name,value))
+            self.properties[name] = self.Property(name,value)
 
     class Property:
 
@@ -97,7 +98,7 @@ class Tokenizer(abc.ABC):
             self.value = value
 
     def to_sql(self):
-        properties=" ".join(["%s '%s'" % (p.name,p.value) for p in self.properties])
+        properties=" ".join(["%s '%s'" % (p.name,p.value) for p in self.properties.values()])
         return "tokenize=\"{name} {properties}\"".format(name=self.name,properties=properties)
     
 class Unicode61(Tokenizer):
@@ -107,14 +108,40 @@ class Unicode61(Tokenizer):
     
     VALID_DIACRITICS = ["0","1","2"]
 
-    def __init__(self,remove_diacritics="2",categories=None,tokenchars=None,separators=None):
+    def __init__(self,remove_diacritics="2",categories=None,tokenchars=None,separators=""):
         super().__init__("unicode61")
         if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
             raise self.TokenizerError("Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
         self.add_property("remove_diacritics", remove_diacritics)
+        if categories is None:
+            categories = "L* N* Co"
         self.add_property("categories",categories)
         self.add_property("tokenchars",tokenchars)
         self.add_property("separators",separators)
+
+    def tokenize(self,input_str):
+        '''
+        Based on the settings of unicode61 tokenizer given, split the 
+        input_str into individual tokens and return them as a list of 
+        tokens.
+        '''
+        categories = self.properties.get("categories").value.split(" ")
+        additional_separators = self.properties.get("separators")
+        output_str=""
+        for character in input_str:
+            if additional_separators is not None:
+                if character in additional_separators.value:
+                    output_str+=" "
+                    continue
+            ch_category = unicodedata.category(character)
+            if ch_category in categories or ch_category[0]+"*" in categories:
+                # regular token
+                output_str+=character
+            else:
+                # separator
+                output_str+=" "
+        return [ch for ch in output_str.split(" ") if len(ch)>0]
+            
 
 class Field(abc.ABC):
     '''
