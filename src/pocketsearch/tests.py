@@ -672,6 +672,66 @@ class Unicode61Tests(unittest.TestCase):
             Unicode61(remove_diacritics=2)     
 
 
+class TokenizerTests(unittest.TestCase):
+    '''
+    Test the behavior of various tokenizers
+    '''
+
+    class SchemaDiacritics(Schema):
+
+        class Meta:
+            tokenizer = Unicode61()
+
+        text = Text(index=True)
+
+    def test_remove_diacritics(self):
+        '''
+        Test if search recognizes characters with diacritics
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics="0")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="äö")
+        self.assertEqual(pocket_search.search(text="ao").count(),0)
+
+    def test_keep_diacritics(self):
+        '''
+        Setting remove diacritics to 1 or 2 will keep the diacritics
+        '''
+        for val in ["1","2"]:
+            self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics=val)
+            pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+            pocket_search.insert(text="äö")            
+            self.assertEqual(pocket_search.search(text="ao").count(),1)     
+
+    def test_categories(self):
+        '''
+        Configure the tokenizer in a way that it only considers numbers 
+        to be valid tokens
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="a b c 1 2 3")
+
+        self.assertEqual(pocket_search.search(text="a").count(),0)
+        self.assertEqual(pocket_search.search(text="b").count(),0)
+        self.assertEqual(pocket_search.search(text="c").count(),0)
+        self.assertEqual(pocket_search.search(text="1").count(),1)
+        self.assertEqual(pocket_search.search(text="2").count(),1)
+        self.assertEqual(pocket_search.search(text="3").count(),1)
+
+    def test_add_separator(self):
+        '''
+        Add the character 'X', 'Y' and 'Z' as additional separator character
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(separators="XYZ")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="aXbXcXd BYZD")
+        self.assertEqual(pocket_search.search(text="X").count(),0)
+        self.assertEqual(pocket_search.search(text="a").count(),1)
+        self.assertEqual(pocket_search.search(text="B").count(),1)
+        self.assertEqual(pocket_search.search(text="Y").count(),0)
+        self.assertEqual(pocket_search.search(text="Z").count(),0)
+        self.assertEqual(pocket_search.search(text="D").count(),1)
 
 class CharacterTest(unittest.TestCase):
     '''
