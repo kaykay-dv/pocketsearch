@@ -6,7 +6,7 @@ Here is an example:
 ```Python
 # We provide 3 characters:
 pocket_search.autocomplete(text="inv")[0]
-Inverted file
+'Inverted file'
 ```
 
 Autocomplete works as follows:
