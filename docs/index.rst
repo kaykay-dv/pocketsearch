@@ -20,10 +20,18 @@ Python 3.9, Python 3.10 and Python 3.11.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :numbered:
 
    installation.md
-   gettingstarted.md
+   getting_started.md
+   schemas.md
+   searching.md
+   boolean_searching.md
+   searching_non_text_data.md
+   formatting.md
+   advanced.md
+   contribute.md
+   license.md
 
 Indices and tables
 ==================
