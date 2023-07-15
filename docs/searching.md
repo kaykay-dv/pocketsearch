@@ -32,6 +32,19 @@ pocket_search.search(text="hello")[0].text
 len(pocket_search.search(text="hello"))
 ```
 
+You can control the number of results you want to receive by using slicing:
+
+```Python
+# 10 results (default):
+pocket_search.search(text="hello")
+# 20 results:
+pocket_search.search(text="hello")[0:20]
+# 50 results:
+pocket_search.search(text="hello")[0:50]
+# Results 10 to 20 (useful for pagination):
+pocket_search.search(text="hello")[10:20]
+```
+
 When not providing any keyword arguments 10 results (if available) are 
 returned (in the order as they have been inserted in the index)
 
@@ -52,7 +65,7 @@ for document in pocket_search.search(text="hello"):
 > **_NOTE:_** The actual search in the database is only conducted when 
 the results are either accessed through iteration, indexing or slicing.
 
-Thus,
+To illustrate with an example:
 
 ```Python
 # No search is performed when assigning 
