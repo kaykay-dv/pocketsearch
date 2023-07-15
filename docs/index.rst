@@ -20,7 +20,6 @@ Python 3.9, Python 3.10 and Python 3.11.
 
 .. toctree::
    :maxdepth: 2
-   :numbered:
 
    installation.md
    getting_started.md
@@ -34,9 +33,4 @@ Python 3.9, Python 3.10 and Python 3.11.
    contribute.md
    license.md
 
-Indices and tables
-==================
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
