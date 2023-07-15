@@ -23,7 +23,7 @@ class FileContents(Schema):
 
 Following options are available:
 
-* **remove_diacritics** - default is "1" - By default the tokenizer removes all diacritics from characters. If you want to keep diacritics, set to "0".
+* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e and **a** respectivley )from characters. If you want to keep diacritics, set to "0".
 * **categories** - defines characters that are NOT separation characters through unicode categories.
 * **separators** - define additional characters that should be considered as separation characters.
 
