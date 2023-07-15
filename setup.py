@@ -14,7 +14,7 @@ setuptools.setup(
     url = "https://github.com/kaykay-dv/pocketsearch/",
     project_urls = {
         "Bug Tracker": "https://github.com/kaykay-dv/pocketsearch/issues",
-        "Change log" : "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md"
+        "Change log" : "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md",
         "Documentation" : "https://pocketsearch.readthedocs.io/"
     },
     classifiers = [
