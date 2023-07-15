@@ -671,62 +671,94 @@ class Unicode61Tests(unittest.TestCase):
             # not allowed, values must be strings
             Unicode61(remove_diacritics=2)     
 
-class TokenizerTests(unittest.TestCase):
+
+
+class CharacterTest(unittest.TestCase):
     '''
-    Test the behavior of various tokenizers
+    Tokenization-related tests
     '''
 
-    class SchemaDiacritics(Schema):pass
+    def setUp(self):
+        self.data = [
+            "äö",
+            "ao",
+            "break-even",
+            "bleɪd",
+            "(bracket)",
+            "(bracket )",
+            "(bracket]",
+            "U.S.A.",
+            "I50.1.3",
+            "I50 13",            
+            "ˌrʌnɚ",
+            "'x'"
+        ]
+        self.pocket_search = PocketSearch(writeable=True)
+        for elem in self.data:
+            self.pocket_search.insert(text=elem)
 
-    def test_remove_diacritics(self):
+    def test_hash(self):
         '''
-        Test if search recognizes characters with diacritics
+        Test searching for hash symbols.
         '''
-        self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics="0")
-        pocket_search = PocketSearch()
-        pocket_search.insert(text="äö")
-        self.assertEqual(pocket_search.search(text="ao").count(),0)
+        self.assertEqual(self.pocket_search.search(text="#").count(), 0)
 
-    def test_keep_diacritics(self):
+    def test_search_hyphen(self):
         '''
-        Setting remove diacritics to 1 or 2 will keep the diacritics
+        Test search for hyphen symbols. 
         '''
-        for val in ["1","2"]:
-            self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics=val)
-            pocket_search = PocketSearch()
-            pocket_search.insert(text="äö")            
-            self.assertEqual(pocket_search.search(text="ao").count(),1)     
+        self.assertEqual(self.pocket_search.search(text="break even").count(), 1)
+        self.assertEqual(self.pocket_search.search(text="break-even").count(), 1)
+        self.assertEqual(self.pocket_search.search(text="breakeven").count(), 0)
 
-    def test_categories(self):
+    def test_search_punctuation(self):
         '''
-        Configure the tokenizer in a way that it only considers numbers 
-        to be valid tokens
+        As punctuation is removed there is no difference between a search for I50. and I50
         '''
-        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*")
-        pocket_search = PocketSearch()
-        pocket_search.insert(text="a b c 1 2 3")
+        self.assertEqual(self.pocket_search.search(text__allow_prefix="I50.*").count(), 2)
 
-        self.assertEqual(pocket_search.search(text="a").count(),0)
-        self.assertEqual(pocket_search.search(text="b").count(),0)
-        self.assertEqual(pocket_search.search(text="c").count(),0)
-        self.assertEqual(pocket_search.search(text="1").count(),1)
-        self.assertEqual(pocket_search.search(text="2").count(),1)
-        self.assertEqual(pocket_search.search(text="3").count(),1)
-
-    def test_add_separator(self):
+    def test_search_special_characters(self):
         '''
-        Add the character 'X', 'Y' and 'Z' as additional separator character
+        Test default behavior. By default, diacritics are removed from all Latin script characters.
+        This means, that a search for äö is equivalent to a search for ao.
         '''
-        self.SchemaDiacritics.Meta.tokenizer = Unicode61(separators="XYZ")
-        pocket_search = PocketSearch()
-        pocket_search.insert(text="aXbXcXd BYZD")
-        self.assertEqual(pocket_search.search(text="X").count(),0)
-        self.assertEqual(pocket_search.search(text="a").count(),1)
-        self.assertEqual(pocket_search.search(text="B").count(),1)
-        self.assertEqual(pocket_search.search(text="Y").count(),0)
-        self.assertEqual(pocket_search.search(text="Z").count(),0)
-        self.assertEqual(pocket_search.search(text="D").count(),1)
+        self.assertEqual(self.pocket_search.search(text="äö").count(), 2)
 
+    def test_search_special_characters2(self):
+        '''
+        Another test covering search for characters with diacritics
+        '''
+        self.assertEqual(self.pocket_search.search(text="bleɪd").count(), 1)
+
+    def test_search_brackets(self):
+        '''
+        Test search for a string that is wrapped in brackets.
+        '''
+        self.assertEqual(self.pocket_search.search(text="bracket").count(), 3)
+
+    def test_search_punctuation1(self):
+        '''
+        Test searching for abbrevated terms.
+        '''
+        self.assertEqual(self.pocket_search.search(text="u s a").count(), 1)
+
+    def test_search_punctuation2(self):
+        '''
+        The search for USA should fail in this case.
+        '''
+        self.assertEqual(self.pocket_search.search(text="usa").count(), 0)
+
+    def test_search_punctuation3(self):
+        '''
+        The search for U.S.A. instead should work.
+        '''
+        self.assertEqual(self.pocket_search.search(text="u.s.a").count(), 1)
+
+    def test_quoting(self):
+        '''
+        Quotes should be removed from the tokens, so this should work
+        '''
+        self.assertEqual(self.pocket_search.search(text="x").count(), 1)
 
 
 class MultipleFieldRankingtest(unittest.TestCase):
