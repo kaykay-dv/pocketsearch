@@ -1,5 +1,19 @@
 # Change log
 
+## Version 0.11.0
+* Fixed https://github.com/kaykay-dv/pocketsearch/issues/36
+* Fixed https://github.com/kaykay-dv/pocketsearch/issues/35
+* Introduced Tokenizer classes to setup FTS5 supported tokenizers
+* Added .tokens() method (https://github.com/kaykay-dv/pocketsearch/issues/32)
+* Added more logger.debug statements to plain SQL
+* Added logger.debug statements for table creation
+* Added sphinx-documentation and moved documentation to readthedocs
+
+**Deprecated**:
+
+* Versions < 0.11 had buggy sqlite_* meta options. These have been removed. Currently 
+a dedicated Unicode61 tokenizer class with options is provided.
+
 ## Version 0.10.0
 * Added typeahead convenience method
 * Added warning when invoking | operator on .search method

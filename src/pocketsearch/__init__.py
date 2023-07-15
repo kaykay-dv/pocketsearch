@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import sqlite3
+import unicodedata
 import os
 import time
 import abc
@@ -72,6 +73,75 @@ class Timer:
         s = s+"----\n"
         return s
 
+class Tokenizer(abc.ABC):
+    '''
+    Base class for tokenizers
+    '''
+
+    class TokenizerError(Exception):
+        '''
+        Thrown if the initialization of the tokenizer fails
+        '''
+
+    def __init__(self,name):
+        self.name=name
+        self.properties = {}
+
+    def add_property(self,name,value):
+        if value is not None:
+            self.properties[name] = self.Property(name,value)
+
+    class Property:
+
+        def __init__(self,name,value):
+            self.name = name
+            self.value = value
+
+    def to_sql(self):
+        properties=" ".join(["%s '%s'" % (p.name,p.value) for p in self.properties.values()])
+        return "tokenize=\"{name} {properties}\"".format(name=self.name,properties=properties)
+    
+class Unicode61(Tokenizer):
+    '''
+    Unicode61 tokenizer (see https://www.sqlite.org/fts5.html for more details)
+    '''
+    
+    VALID_DIACRITICS = ["0","1","2"]
+
+    def __init__(self,remove_diacritics="2",categories=None,tokenchars=None,separators=""):
+        super().__init__("unicode61")
+        if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
+            raise self.TokenizerError("Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
+        self.add_property("remove_diacritics", remove_diacritics)
+        if categories is None:
+            categories = "L* N* Co"
+        self.add_property("categories",categories)
+        self.add_property("tokenchars",tokenchars)
+        self.add_property("separators",separators)
+
+    def tokenize(self,input_str):
+        '''
+        Based on the settings of unicode61 tokenizer given, split the 
+        input_str into individual tokens and return them as a list of 
+        tokens.
+        '''
+        categories = self.properties.get("categories").value.split(" ")
+        additional_separators = self.properties.get("separators")
+        output_str=""
+        for character in input_str:
+            if additional_separators is not None:
+                if character in additional_separators.value:
+                    output_str+=" "
+                    continue
+            ch_category = unicodedata.category(character)
+            if ch_category in categories or ch_category[0]+"*" in categories:
+                # regular token
+                output_str+=character
+            else:
+                # separator
+                output_str+=" "
+        return [ch for ch in output_str.split(" ") if len(ch)>0]
+            
 
 class Field(abc.ABC):
     '''
@@ -223,11 +293,7 @@ class Schema:
         If a value is set to None, we leave it up to sqlite to
         set proper defaults.
         '''
-        sqlite_tokenize = "unicode61"
-        sqlite_remove_diacritics = None
-        sqlite_categories = None
-        sqlite_tokenchars = None
-        sqlite_separators = None
+        tokenizer = Unicode61()
         prefix_index = None
 
     RESERVED_KEYWORDS = [
@@ -253,6 +319,16 @@ class Schema:
 
     def __init__(self, name):
         self._meta = self.Meta()
+        try:
+            self._meta.prefix_index
+        except AttributeError:
+            # set reasonable default
+            self._meta.prefix_index = None
+        try:
+            self._meta.tokenizer
+        except AttributeError:
+            # set reasonable default
+            self._meta.tokenizer = Unicode61()  
         self.name = name
         self.fields = {}
         self.field_index = {} # required by some SQL functions, e.g. highlight
@@ -345,7 +421,6 @@ class Document:
 
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f, getattr(self, f)) for f in self.fields])
-
 
 class SQLQueryComponent(abc.ABC):
     '''
@@ -1053,7 +1128,6 @@ class Query:
     def __iter__(self):
         return iter(self._query())
 
-
 class PocketSearch:
     '''
     Main class to interact with the search index.
@@ -1098,15 +1172,20 @@ class PocketSearch:
                  index_name="documents",
                  schema=DefaultSchema,
                  writeable=False,
-                 write_buffer_size=1):
+                 write_buffer_size=1,
+                 connection=None):
         self.db_name = db_name
-        self.connection = self._open()
+        if connection is None:
+            self.connection = self._open()
+        else:
+            self.connection = connection
         self.cursor = self.connection.cursor()
         self.schema = schema(index_name)
         self.db_name = db_name
         self.writeable = writeable
         self.write_buffer=0 # keep a record of writes performed by insert statement
         self.write_buffer_size=write_buffer_size
+        self.index_name = index_name
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
@@ -1154,16 +1233,10 @@ class PocketSearch:
     def _create_additional_options(self):
         '''
         Reads the options defined in the meta class of the schema to provide additional information
-        for the FTS table creation.
+        for the FTS table creation, specifically the tokenization process.
         '''
-        options = []
         m = self.schema._meta
-        for option in dir(m):
-            if option.startswith("sqlite") and getattr(m, option) is not None:
-                options.append("%s=\"%s\"" % (option.split("sqlite_")[1:][0], getattr(m, option)))
-        if len(options) == 0:
-            return ""
-        return "," + ",".join(options)
+        return ", " + m.tokenizer.to_sql()
 
     def _create_prefix_index(self):
         prefix_index = self.schema._meta.prefix_index
@@ -1193,12 +1266,17 @@ class PocketSearch:
                 fields.append(field)
         if len(index_fields) == 0:
             raise IndexError("Schema does not have a single indexable FTS field.")
-        sql_table = '''
-        CREATE TABLE IF NOT EXISTS %s(%s)
-        ''' % (index_name, ", ".join([field.to_sql() for field in fields]))
-        sql_virtual_table = '''
-        CREATE VIRTUAL TABLE IF NOT EXISTS %s_fts USING fts5(%s, content='%s', content_rowid='id' %s %s);
-        ''' % (index_name, ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]), index_name, self._create_additional_options(), self._create_prefix_index())
+        standard_fields = ", ".join([field.to_sql() for field in fields])
+        fts_fields = ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        additional_options = self._create_additional_options()
+        prefix_index = self._create_prefix_index()
+        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
+        sql_virtual_table = f'''
+        CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
+            content='{index_name}', content_rowid='id' {additional_options} {prefix_index});
+        '''
+        # aux tables
+        sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
         sql_trigger_insert = '''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
@@ -1215,13 +1293,29 @@ class PocketSearch:
         END;
         '''
         self.cursor.execute(sql_table)
+        self.cursor.execute(sql_aux_table)
+        logger.debug(sql_table)
+        logger.debug(sql_virtual_table)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
         # create standard indices
         for field in default_index_fields:
-            self.cursor.execute("CREATE INDEX idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+            self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+
+    def tokens(self):
+        '''
+        Return token statistics on the current index
+        '''
+        sql = "select term as token, doc as num_documents, cnt as total_count from %s_fts_v order by total_count desc" % self.index_name
+        self.cursor.execute(sql)
+        row = self.cursor.fetchone()
+        while row is not None:
+            yield {"token":row["token"],"num_documents":row["num_documents"],"total_count":row["total_count"]}
+            row = self.cursor.fetchone()
+
+
 
     def get_arguments(self, kwargs, for_search=True):
         '''
@@ -1318,6 +1412,7 @@ class PocketSearch:
                                                    joined_fields,
                                                    ",".join(placeholder_values))
         try:
+            logger.debug(sql)
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
@@ -1329,6 +1424,7 @@ class PocketSearch:
         '''
         sql = "select * from %s  where id=?" % (self.schema.name,)
         fields = self.schema.get_fields()
+        logger.debug(sql)
         doc = self.cursor.execute(sql, (rowid,)).fetchone()
         if doc is None:
             raise self.DocumentDoesNotExist()
@@ -1350,6 +1446,7 @@ class PocketSearch:
         for f in arguments:
             stmt.append("%s=?" % f)
         sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
+        logger.debug(sql)
         self.cursor.execute(sql, values)
         if self.write_buffer > self.write_buffer_size:
             self.write_buffer=0
@@ -1363,7 +1460,18 @@ class PocketSearch:
         '''
         self.assure_writeable()
         sql = "delete from %s where id = ?" % (self.schema.name)
+        logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
+        self.commit()
+
+    def delete_all(self):
+        '''
+        Delete entire index in database
+        '''
+        self.assure_writeable()
+        sql = "delete from %s" % self.schema.name
+        logger.debug(sql)
+        self.cursor.execute(sql)
         self.commit()
 
     def autocomplete(self,*args,**kwargs):
@@ -1465,3 +1573,5 @@ class FileSystemReader(IndexReader):
                         file_path = os.path.join(root, file)
                         with open(file_path, 'r',encoding=self.encoding) as file:
                             yield(self.file_to_dict(file_path, file))
+
+

@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q
+from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -161,6 +161,30 @@ class SQLFunctionTests(BaseTest):
         '''        
         with self.assertRaises(Query.QueryError):
             self.pocket_search.search(text="forward index").snippet("text",snippet_length=0)        
+
+class TokenInfoTest(BaseTest):
+    '''
+    Test accessing meta data of the index
+    '''
+
+    def test_get_tokens(self):
+        '''
+        Try to access the list of tokens
+        '''
+        tokens = list(self.pocket_search.tokens())
+        # Check number of entries, should be 16
+        self.assertEqual(len(tokens),16)
+        # Check, if the first entry is the most frequent token
+        self.assertEqual(tokens[0]["token"],"the")
+        self.assertEqual(tokens[0]["num_documents"],2)
+        self.assertEqual(tokens[0]["total_count"],4)
+
+    def test_empty_pocket(self):
+        '''
+        Empty index should lead to an empty list
+        '''
+        p = PocketSearch()
+        self.assertEqual(len(list(p.tokens())),0)
 
 class OperatorSearch(BaseTest):
     '''
@@ -493,19 +517,38 @@ class IDFieldTest(unittest.TestCase):
 class IndexUpdateTests(BaseTest):
 
     def test_get_entry(self):
+        '''
+        Test get document by id
+        '''
         document = self.pocket_search.get(rowid=1)
         self.assertEqual(document.id, 1)
 
     def test_get_non_existing_entry(self):
+        '''
+        Getting a document with a non-existing id, should result in an 
+        exception
+        '''
         with self.assertRaises(self.pocket_search.DocumentDoesNotExist):
             self.pocket_search.get(rowid=1000)
 
     def test_delete_entry(self):
+        '''
+        Entry if "fox" should have disappeared:
+        '''
         self.pocket_search.delete(rowid=1)
-        # Entry if "fox" should have disappeared:
         self.assertEqual(self.pocket_search.search(text="fox").count(), 0)
 
+    def test_delete_all(self):
+        '''
+        Should result in an empty database
+        '''
+        self.pocket_search.delete_all()
+        self.assertEqual(self.pocket_search.search().count(), 0)
+
     def test_update_entry(self):
+        '''
+        Test updating an entry
+        '''
         self.pocket_search.update(rowid=1, text="The DOG jumped over the fence. Now he is beyond the fence.")
         self.assertEqual(self.pocket_search.search(text="fox").count(), 0)
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
@@ -597,17 +640,133 @@ class AutocompleteTest(unittest.TestCase):
         '''
         self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
+class Unicode61Tests(unittest.TestCase):
+
+    def test_valid_invalid_diacritics(self):
+        '''
+        Test invalid diacritics options
+        '''
+        with self.assertRaises(Unicode61.TokenizerError):
+            Unicode61(remove_diacritics="-1")
+            Unicode61(remove_diacritics="8")
+            Unicode61(remove_diacritics="b")
+            # not allowed, values must be strings
+            Unicode61(remove_diacritics=2)     
+
+    def test_tokenize(self):
+        '''
+        Basic test to see if the tokenize method can 
+        simulate the tokenization process of FTS5's unicode61 tokenizer
+        '''
+        under_test = "(This) 'is' a-toke2nize;te^st."
+        tokens = Unicode61().tokenize(under_test)
+        self.assertEqual(len(tokens),6)
+
+    def test_additional_separator(self):
+        '''
+        Test if the tokenize method respects additional separators
+        '''
+        under_test = "(This)X'is'Ya-toke2nizeZtest."
+        tokens = Unicode61(separators="XYZ").tokenize(under_test)
+        self.assertEqual(len(tokens),5)        
+
+    def test_tokenize_custom_categories_and_categories(self):
+        '''
+        Customize the categories and separators argument
+        '''
+        under_test = "(This)X'is'Ya-toke42nizeZtest."
+        tokens = Unicode61(categories="N*",separators="4").tokenize(under_test)
+        # this indicates that only numbers are valid tokens, thus 
+        # everything else is considered a separator character
+        self.assertEqual(len(tokens),1)
+        self.assertEqual(tokens[0],"2")     
+
+class TokenizerTests(unittest.TestCase):
+    '''
+    Test the behavior of various tokenizers
+    '''
+
+    class SchemaDiacritics(Schema):
+
+        class Meta:
+            tokenizer = Unicode61()
+
+        text = Text(index=True)
+
+    def test_remove_diacritics(self):
+        '''
+        Test if search recognizes characters with diacritics
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics="0")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="äö")
+        self.assertEqual(pocket_search.search(text="ao").count(),0)
+
+    def test_keep_diacritics(self):
+        '''
+        Setting remove diacritics to 1 or 2 will keep the diacritics
+        '''
+        for val in ["1","2"]:
+            self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics=val)
+            pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+            pocket_search.insert(text="äö")            
+            self.assertEqual(pocket_search.search(text="ao").count(),1)     
+
+    def test_categories(self):
+        '''
+        Configure the tokenizer in a way that it only considers numbers 
+        to be valid tokens
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="a b c 1 2 3")
+
+        self.assertEqual(pocket_search.search(text="a").count(),0)
+        self.assertEqual(pocket_search.search(text="b").count(),0)
+        self.assertEqual(pocket_search.search(text="c").count(),0)
+        self.assertEqual(pocket_search.search(text="1").count(),1)
+        self.assertEqual(pocket_search.search(text="2").count(),1)
+        self.assertEqual(pocket_search.search(text="3").count(),1)
+
+    def test_add_separator(self):
+        '''
+        Add the character 'X', 'Y' and 'Z' as additional separator character
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(separators="XYZ")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text="aXbXcXd BYZD")
+        self.assertEqual(pocket_search.search(text="X").count(),0)
+        self.assertEqual(pocket_search.search(text="a").count(),1)
+        self.assertEqual(pocket_search.search(text="B").count(),1)
+        self.assertEqual(pocket_search.search(text="Y").count(),0)
+        self.assertEqual(pocket_search.search(text="Z").count(),0)
+        self.assertEqual(pocket_search.search(text="D").count(),1)
+
+    def test_mix_categories_and_separators(self):
+        under_test = "(This)X'is'Ya-toke42nizeZtest."
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*",separators="4")
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text=under_test)
+        for item in pocket_search.tokens():
+            print(item)
+
 class CharacterTest(unittest.TestCase):
+    '''
+    Tokenization-related tests
+    '''
 
     def setUp(self):
         self.data = [
             "äö",
+            "ao",
             "break-even",
             "bleɪd",
             "(bracket)",
             "(bracket )",
             "(bracket]",
             "U.S.A.",
+            "I50.1.3",
+            "I50 13",            
             "ˌrʌnɚ",
             "'x'"
         ]
@@ -616,32 +775,66 @@ class CharacterTest(unittest.TestCase):
             self.pocket_search.insert(text=elem)
 
     def test_hash(self):
+        '''
+        Test searching for hash symbols.
+        '''
         self.assertEqual(self.pocket_search.search(text="#").count(), 0)
 
     def test_search_hyphen(self):
+        '''
+        Test search for hyphen symbols. 
+        '''
         self.assertEqual(self.pocket_search.search(text="break even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="break-even").count(), 1)
         self.assertEqual(self.pocket_search.search(text="breakeven").count(), 0)
 
+    def test_search_punctuation(self):
+        '''
+        As punctuation is removed there is no difference between a search for I50. and I50
+        '''
+        self.assertEqual(self.pocket_search.search(text__allow_prefix="I50.*").count(), 2)
+
     def test_search_special_characters(self):
-        self.assertEqual(self.pocket_search.search(text="äö").count(), 1)
+        '''
+        Test default behavior. By default, diacritics are removed from all Latin script characters.
+        This means, that a search for äö is equivalent to a search for ao.
+        '''
+        self.assertEqual(self.pocket_search.search(text="äö").count(), 2)
 
     def test_search_special_characters2(self):
+        '''
+        Another test covering search for characters with diacritics
+        '''
         self.assertEqual(self.pocket_search.search(text="bleɪd").count(), 1)
 
     def test_search_brackets(self):
+        '''
+        Test search for a string that is wrapped in brackets.
+        '''
         self.assertEqual(self.pocket_search.search(text="bracket").count(), 3)
 
     def test_search_punctuation1(self):
+        '''
+        Test searching for abbrevated terms.
+        '''
         self.assertEqual(self.pocket_search.search(text="u s a").count(), 1)
 
     def test_search_punctuation2(self):
+        '''
+        The search for USA should fail in this case.
+        '''
         self.assertEqual(self.pocket_search.search(text="usa").count(), 0)
 
     def test_search_punctuation3(self):
+        '''
+        The search for U.S.A. instead should work.
+        '''
         self.assertEqual(self.pocket_search.search(text="u.s.a").count(), 1)
 
     def test_quoting(self):
+        '''
+        Quotes should be removed from the tokens, so this should work
+        '''
         self.assertEqual(self.pocket_search.search(text="x").count(), 1)
 
 

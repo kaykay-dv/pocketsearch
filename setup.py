@@ -5,7 +5,7 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 setuptools.setup(
     name = "pocketsearch",
-    version = "0.10.0",
+    version = "0.11.0",
     author = "kaykay-dv",
     author_email = "kaykay2306@gmail.com",
     description = "A pure-Python full text indexing search engine based on sqlite and the FTS5 extension.",
@@ -14,7 +14,8 @@ setuptools.setup(
     url = "https://github.com/kaykay-dv/pocketsearch/",
     project_urls = {
         "Bug Tracker": "https://github.com/kaykay-dv/pocketsearch/issues",
-        "Change log" : "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md"
+        "Change log" : "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md",
+        "Documentation" : "https://pocketsearch.readthedocs.io/"
     },
     classifiers = [
         "Development Status :: 4 - Beta",
