@@ -1289,15 +1289,6 @@ class PocketSearch:
         '''
         m = self.schema._meta
         return ", " + m.tokenizer.to_sql()
-        # REWRITE
-        #options = []
-        #m = self.schema._meta
-        #for option in dir(m):
-        #    if option.startswith("sqlite") and getattr(m, option) is not None:
-        #        options.append("%s=\"%s\"" % (option.split("sqlite_")[1:][0], getattr(m, option)))
-        #if len(options) == 0:
-        #    return ""
-        #return "," + ",".join(options)
 
     def _create_prefix_index(self):
         prefix_index = self.schema._meta.prefix_index
