@@ -24,6 +24,7 @@ Python 3.9, Python 3.10 and Python 3.11.
 
    installation.md
    getting_started.md
+   persistent_databases.md
    schemas.md
    searching.md
    boolean_searching.md

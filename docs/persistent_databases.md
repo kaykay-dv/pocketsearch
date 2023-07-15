@@ -9,4 +9,11 @@ pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
 # current working directory.
 ```
 
- 
+If you want to open the database at a later stage for searching open it in 
+read-only mode:
+
+```Python
+pocket_search = PocketSearch(db_name="my_db.db")
+pocket_search.search(text="Hello world")
+```
+
