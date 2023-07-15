@@ -8,7 +8,7 @@ If you want to customize the behavior of the tokenizer you can override the meta
 of your schema:
 
 ```Python
-from pocketsearch import Schema, PocketSearch
+from pocketsearch import Schema, PocketSearch, Unicode61
 
 class FileContents(Schema):
 
