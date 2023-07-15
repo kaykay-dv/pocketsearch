@@ -31,6 +31,7 @@ Python 3.9, Python 3.10 and Python 3.11.
    boolean_searching.md
    searching_non_text_data.md
    formatting.md
+   autocomplete.md
    advanced.md
    contribute.md
    license.md
