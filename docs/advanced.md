@@ -56,7 +56,7 @@ list(pocket_search.tokens())
 ```
 
 * **token represents** the actual token that is stored in the index.
-* **num_documents** represents the number of documents where tokens occurs at least one time.
+* **num_documents** represents the number of documents where the token occurs at least one time.
 * **total_count** is the total number of occurrences in the index.
 
 ## Prefix indices
@@ -76,8 +76,7 @@ To speed up prefix queries, you can setup prefix indices:
 
 ## Behind the scenes: how searching works
 
-pocketsearch uses the FTS5 extension of sqlite. More information can be found here:
-https://www.sqlite.org/fts5.html
+pocketsearch uses the [FTS5 extension of sqlite](https://www.sqlite.org/fts5.html). 
 
 Internally, it:
 
