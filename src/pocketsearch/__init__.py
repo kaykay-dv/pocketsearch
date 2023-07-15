@@ -77,6 +77,11 @@ class Tokenizer(abc.ABC):
     Base class for tokenizers
     '''
 
+    class TokenizerError(Exception):
+        '''
+        Thrown if the initialization of the tokenizer fails
+        '''
+
     def __init__(self,name):
         self.name=name
         self.properties = []
@@ -92,7 +97,7 @@ class Tokenizer(abc.ABC):
             self.value = value
 
     def to_sql(self):
-        properties=" ".join(["%s %s" % (p.name,p.value) for p in self.properties])
+        properties=" ".join(["%s '%s'" % (p.name,p.value) for p in self.properties])
         return "tokenize=\"{name} {properties}\"".format(name=self.name,properties=properties)
     
 class Unicode61(Tokenizer):
@@ -100,9 +105,13 @@ class Unicode61(Tokenizer):
     Unicode61 tokenizer (see https://www.sqlite.org/fts5.html for more details)
     '''
     
+    VALID_DIACRITICS = ["0","1","2"]
+
     def __init__(self,remove_diacritics="1",categories=None,tokenchars=None,separators=None):
         super().__init__("unicode61")
-        self.add_property("remove_diacritics","'%s'" % remove_diacritics)
+        if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
+            raise self.TokenizerError("Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
+        self.add_property("remove_diacritics", remove_diacritics)
         self.add_property("categories",categories)
         self.add_property("tokenchars",tokenchars)
         self.add_property("separators",separators)

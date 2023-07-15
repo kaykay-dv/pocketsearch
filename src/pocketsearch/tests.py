@@ -658,29 +658,74 @@ class AutocompleteTest(unittest.TestCase):
         '''
         self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
-class DiacriticsTests(unittest.TestCase):
+class Unicode61Tests(unittest.TestCase):
 
-    class Schema(Schema):
+    def test_valid_invalid_diacritics(self):
         '''
-        Schema with one field, diacritics should NOT be removed
+        Test invalid diacritics options
         '''
-        class Meta:
-            '''
-            Meta information for index
-            '''
-            tokenizer = Unicode61(remove_diacritics="0")
+        with self.assertRaises(Unicode61.TokenizerError):
+            Unicode61(remove_diacritics="-1")
+            Unicode61(remove_diacritics="8")
+            Unicode61(remove_diacritics="b")
+            # not allowed, values must be strings
+            Unicode61(remove_diacritics=2)     
 
-        text = Text(index=True)
+class TokenizerTests(unittest.TestCase):
+    '''
+    Test the behavior of various tokenizers
+    '''
 
-    def setUp(self):
-        self.pocket_search = PocketSearch(schema=self.Schema)
+    class SchemaDiacritics(Schema):pass
 
-    def test_diacritics(self):
+    def test_remove_diacritics(self):
         '''
         Test if search recognizes characters with diacritics
         '''
-        self.pocket_search.insert(text="äö")
-        self.assertEqual(self.pocket_search.search(text="ao").count(),0)
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics="0")
+        pocket_search = PocketSearch()
+        pocket_search.insert(text="äö")
+        self.assertEqual(pocket_search.search(text="ao").count(),0)
+
+    def test_keep_diacritics(self):
+        '''
+        Setting remove diacritics to 1 or 2 will keep the diacritics
+        '''
+        for val in ["1","2"]:
+            self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics=val)
+            pocket_search = PocketSearch()
+            pocket_search.insert(text="äö")            
+            self.assertEqual(pocket_search.search(text="ao").count(),1)     
+
+    def test_categories(self):
+        '''
+        Configure the tokenizer in a way that it only considers numbers 
+        to be valid tokens
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*")
+        pocket_search = PocketSearch()
+        pocket_search.insert(text="a b c 1 2 3")
+
+        self.assertEqual(pocket_search.search(text="a").count(),0)
+        self.assertEqual(pocket_search.search(text="b").count(),0)
+        self.assertEqual(pocket_search.search(text="c").count(),0)
+        self.assertEqual(pocket_search.search(text="1").count(),1)
+        self.assertEqual(pocket_search.search(text="2").count(),1)
+        self.assertEqual(pocket_search.search(text="3").count(),1)
+
+    def test_add_separator(self):
+        '''
+        Add the character 'X', 'Y' and 'Z' as additional separator character
+        '''
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(separators="XYZ")
+        pocket_search = PocketSearch()
+        pocket_search.insert(text="aXbXcXd BYZD")
+        self.assertEqual(pocket_search.search(text="X").count(),0)
+        self.assertEqual(pocket_search.search(text="a").count(),1)
+        self.assertEqual(pocket_search.search(text="B").count(),1)
+        self.assertEqual(pocket_search.search(text="Y").count(),0)
+        self.assertEqual(pocket_search.search(text="Z").count(),0)
+        self.assertEqual(pocket_search.search(text="D").count(),1)
 
 class CharacterTest(unittest.TestCase):
     '''
