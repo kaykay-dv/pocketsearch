@@ -1128,6 +1128,40 @@ class Query:
     def __iter__(self):
         return iter(self._query())
 
+class PocketContextManager(abc.ABC):
+
+    def __enter__(self,*args,**kwargs):
+        return self.pocketsearch
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.pocketsearch.close()
+
+class PocketReader(PocketContextManager):
+    '''
+    Simple context manager opening a pocket search instance 
+    in read-only mode.
+    '''
+
+    def __init__(self,db_name=None,
+                      schema=DefaultSchema):
+        self.pocketsearch = PocketSearch(db_name=db_name,schema=schema)
+
+class PocketWriter(PocketContextManager):
+    '''
+    Simple context manager opening a pocket search instance 
+    in read/write mode.
+    '''    
+
+    def __init__(self,db_name=None,
+                 schema=DefaultSchema,
+                 write_buffer_size=1):
+        self.pocketsearch = PocketSearch(
+            db_name=db_name,
+            schema=schema,
+            writeable=True,
+            write_buffer_size=write_buffer_size
+        )
+
 class PocketSearch:
     '''
     Main class to interact with the search index.
@@ -1193,16 +1227,22 @@ class PocketSearch:
 
     def _open(self):
         if self.db_name is None:
+            logger.debug("Opening connection to in-memory db")
             connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         else:
+            logger.debug("Opening connection to db %s" % self.db_name)
             connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         connection.row_factory = sqlite3.Row
         return connection
 
     def _close(self):
         if self.connection:
+            logger.debug("Closing connection")
             self.connection.close()
             self.connection = None
+
+    # For backwards compatibility reasons:
+    close = _close
 
     def assure_writeable(self):
         '''

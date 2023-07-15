@@ -1,5 +1,9 @@
 # Change log
 
+## Version 0.12.0
+* Added context managers PocketReader and PocketWriter
+* Made PocketSearch._close a public method
+
 ## Version 0.11.0
 * Fixed https://github.com/kaykay-dv/pocketsearch/issues/36
 * Fixed https://github.com/kaykay-dv/pocketsearch/issues/35

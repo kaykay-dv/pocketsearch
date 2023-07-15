@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
+from pocketsearch import PocketReader,PocketWriter,FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -322,6 +322,19 @@ class PhraseSearch(unittest.TestCase):
 
 
 class IndexTest(BaseTest):
+
+    def test_context_manager(self):
+        '''
+        Tests for in-memory context managers
+        '''
+        # Create in-memory database:
+        with PocketWriter() as pocketsearch:
+            pocketsearch.insert(text="Hello world.")
+            self.assertEqual(pocketsearch.search().count(),1)
+        # Create reader - this should return 0 results
+        # as the PocketReader creates a new database:
+        with PocketReader() as pocketsearch:
+            self.assertEqual(pocketsearch.search(text="Hello world.").count(),0)
 
     def test_write_to_read_only_index(self):
         pocket_search = PocketSearch(writeable=False)
