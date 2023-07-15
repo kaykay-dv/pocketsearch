@@ -19,7 +19,10 @@ pocket_search.search(text__allow_boolean="hello AND world")[0].text
 pocket_search.search(text__allow_boolean="hello world")[0].text
 ```
 
-## AND on multiple fields
+> **_NOTE:_**  Please note that **AND** as well as **OR** are case-sensitive 
+keywords in this case. 
+
+## AND queries on multiple fields
 
 For the following example we assume a schema "FileContents":
 
