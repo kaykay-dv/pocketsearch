@@ -121,6 +121,19 @@ If want to update more fields, simply provide them as keyword arguments:
 pocket_search.update(rowid=1, f1=48, f2='updated text')
 ```
 
+## Insert or update method
+
+The insert_or_update method allows you to either insert a document if it does 
+not already exist or update its existing record in the database. For this to work,
+the schema must at least define one field where the **is_id_field** option is set:
+
+```Python
+# If text.txt does not exist, a new document will be created:
+pocket_search.insert_or_update(filename="text.txt",content="A")
+# Now, the existing document will be updated with the new content:
+pocket_search.insert_or_update(filename="text.txt",content="B")
+```
+
 ## Deleting data
 
 To delete a document, use:
