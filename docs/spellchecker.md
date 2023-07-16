@@ -24,17 +24,22 @@ Any field of type **Text** where index is set to True will be considered for spe
 
 A separate search index is built behind the curtains once the connection is closed:
 
-## Using spellchecking
-
 ```Python
 import pocketsearch
 
-with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
+with pocketsearch.PocketWriter(schema=Example,db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
+
+## Using spellchecking
+
+We can now open the search index again and use spelling suggestions:
+
+```Python
+import pocketsearch
 # now the database is written and the spellchecker is available
-with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader
+with pocketsearch.PocketReader(schema=Example,db_name="my_db.db") as pocket_reader
     pocket_reader.suggest("hllo") # will provide ["hello"]
-    pocket_reader.suggest("hllo wrld") # will provide ["hello","world"]
+    pocket_reader.suggest("wrld") # will provide ["world"]
 ```
 
 Spellchecking is done as follows:
