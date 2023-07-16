@@ -85,7 +85,7 @@ When using the .insert method you have to provide values for **all** fields.
 
 ## Updating data
 
-When storing schemas, pocketsearch associated each document with a unique numeric 
+When storing schemas, pocketsearch associates each document with a unique numeric 
 id. This id can be retrieved through search:
 
 ```Python
