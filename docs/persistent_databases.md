@@ -20,6 +20,13 @@ pocket_search = PocketSearch(db_name="my_db.db")
 pocket_search.search(text="Hello world")
 ```
 
+or
+
+```Python
+pocket_search = PocketSearch(db_name="my_db.db",writeable=False)
+pocket_search.search(text="Hello world")
+```
+
 ## PocketReader and PocketWriter classes
 
 An alternative way to handle writing and reading search indices is to use the PocketReader
