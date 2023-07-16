@@ -1187,9 +1187,12 @@ class SpellCheckerTest(BaseTest):
                 for token, suggestions in results.items():
                     self.assertEqual(token in expected,True)
                     self.assertEqual(expected[token]==results[token],True)
-                print(pocketreader.suggest("hllo"))
-                print(pocketreader.suggest("wrld"))
-                print(pocketreader.suggest("hllo  wrld"))
+                # some edge cases
+                self.assertEqual(len(pocketreader.suggest("")),0)
+                self.assertEqual(len(pocketreader.suggest("!?.*")),0)
+                # this will be ignored (only one character):
+                self.assertEqual(len(pocketreader.suggest("h")),0)
+
 
 if __name__ == '__main__':
     unittest.main()
