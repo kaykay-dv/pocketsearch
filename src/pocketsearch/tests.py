@@ -1155,6 +1155,16 @@ class SpellCheckerTest(BaseTest):
         title = Text(index=True)
         text = Text(index=True)
 
+    def test_suggest_spell_check_not_enabled(self):
+        '''
+        A QueryError should be raised if someone 
+        tries to access spell checking when they 
+        have not been enabled in schema.
+        '''
+        p = PocketSearch()
+        with self.assertRaises(Query.QueryError):
+            p.suggest("test")
+
     def test_suggest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             self.db_name = temp_dir + os.sep + "test.db"
