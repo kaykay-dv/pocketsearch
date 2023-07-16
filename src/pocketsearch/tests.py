@@ -1139,6 +1139,47 @@ class FileSystemReaderTests(unittest.TestCase):
             pocket_search.build(reader)
             self.assertEqual(pocket_search.search(text="world").count(), 3)
 
+class SpellCheckerTest(BaseTest):
+    '''
+    Tests for spell checking class
+    '''
+
+    class TestSchema(Schema):
+        '''
+        Test schema supporting spell checking
+        '''
+
+        class Meta:
+            spell_check = True
+
+        title = Text(index=True)
+        text = Text(index=True)
+
+    def test_suggest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=self.db_name,schema=self.TestSchema) as pocketwriter:
+                for title, text in [
+                    ("Blade Runner","Written in 1982"),
+                    ("Indiana Jones 1","Written in the eighties"),
+                    ("Indiana Jones 2","Again in the eighties"),
+                    ("Hello","World")
+                ]:
+                    pocketwriter.insert(title=title,text=text)
+            with PocketReader(db_name=self.db_name,schema=self.TestSchema) as pocketreader:
+                results = pocketreader.suggest("' lInddjiana agn jin th?i _writen& eigh  ")
+                expected = {'agn': [('again', 2)],
+                    'eigh': [('eighties', 4)],
+                    'jin': [('in', 1), ('again', 3), ('indiana', 5)],
+                    'lInddjiana': [('indiana', 4), ('in', 8), ('again', 8)],
+                    'th': [('the', 1)],
+                    'writen': [('written', 1)]}
+                for token, suggestions in results.items():
+                    self.assertEqual(token in expected,True)
+                    self.assertEqual(expected[token]==results[token],True)
+                print(pocketreader.suggest("hllo"))
+                print(pocketreader.suggest("wrld"))
+                print(pocketreader.suggest("hllo  wrld"))
 
 if __name__ == '__main__':
     unittest.main()

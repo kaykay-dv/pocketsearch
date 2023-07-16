@@ -2,6 +2,8 @@
 
 ## Version 0.12.0
 * Added context managers PocketReader and PocketWriter
+* Added Spell Checker
+* Fixed typos in the documentation
 * Made PocketSearch._close a public method
 
 ## Version 0.11.0

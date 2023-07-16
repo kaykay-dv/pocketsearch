@@ -294,6 +294,7 @@ class Schema:
         set proper defaults.
         '''
         tokenizer = Unicode61()
+        spell_check = False
         prefix_index = None
 
     RESERVED_KEYWORDS = [
@@ -317,18 +318,26 @@ class Schema:
         Thrown, if the schema cannot be generated.
         '''
 
-    def __init__(self, name):
-        self._meta = self.Meta()
+    def _set_meta_defaults(self):
         try:
             self._meta.prefix_index
         except AttributeError:
-            # set reasonable default
             self._meta.prefix_index = None
         try:
             self._meta.tokenizer
         except AttributeError:
-            # set reasonable default
-            self._meta.tokenizer = Unicode61()  
+            # FIXME: might have undesired 
+            # side effects / using another 
+            # exception here?
+            self._meta.tokenizer = Unicode61()
+        try:
+            self._meta.spell_check
+        except AttributeError:
+            self._meta.spell_check=False
+
+    def __init__(self, name):
+        self._meta = self.Meta()
+        self._set_meta_defaults()
         self.name = name
         self.fields = {}
         self.field_index = {} # required by some SQL functions, e.g. highlight
@@ -1162,6 +1171,94 @@ class PocketWriter(PocketContextManager):
             write_buffer_size=write_buffer_size
         )
 
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if self.pocketsearch.schema._meta.spell_check:
+            logger.debug("Building spell checking dictionary")
+            self.pocketsearch.spell_checker.build()
+        self.pocketsearch.close()
+
+class SpellChecker:
+    '''
+    A simplistic implementation of a spellchecker using a PocketSearch 
+    instance in the background. 
+    '''
+
+    class SpellCheckerSchema(Schema):
+        '''
+        Schema to store the spelling suggestions
+        '''
+        token = Text()
+        bigrams = Text(index=True)
+        bigrams_length = Int(index=True)
+
+    def __init__(self,search_instance):
+        self.search_instance = search_instance
+        self.spell_checker = PocketSearch(search_instance.db_name,
+                                          index_name="spellcheck_%s" % search_instance.index_name,
+                                          writeable=search_instance.writeable,
+                                          schema=self.SpellCheckerSchema,
+                                          connection=search_instance.connection,
+                                          write_buffer_size=search_instance.write_buffer_size)
+
+    def _generate_bigrams(self,token,operator=" "):
+        bigrams = []
+        for i in range(len(token) - 1):
+            bigram = token[i:i+2]
+            bigrams.append(bigram)
+        return operator.join(bigrams)
+
+    def _levenshtein_distance(self,word1, word2):
+        m, n = len(word1), len(word2)
+
+        # Create a distance matrix
+        distance = [[0] * (n + 1) for _ in range(m + 1)]
+
+        # Initialize the first row and column of the matrix
+        for i in range(m + 1):
+            distance[i][0] = i
+        for j in range(n + 1):
+            distance[0][j] = j
+
+        # Calculate the minimum edit distance
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if word1[i - 1] == word2[j - 1]:
+                    distance[i][j] = distance[i - 1][j - 1]
+                else:
+                    distance[i][j] = min(
+                        distance[i - 1][j] + 1,  # Deletion
+                        distance[i][j - 1] + 1,  # Insertion
+                        distance[i - 1][j - 1] + 1  # Substitution
+                    )
+        return distance[m][n]
+
+
+    def build(self):
+        '''
+        Walk through the token of the given search_instance and populate the 
+        spell checking index. This methods clear the spelling index and 
+        builds it entirely from scratch again. 
+        '''
+        self.spell_checker.delete_all()
+        for token_info in self.search_instance.tokens():
+            token=token_info.get("token")
+            print(token)
+            bigrams = self._generate_bigrams(token)
+            self.spell_checker.insert(token=token,bigrams=bigrams,bigrams_length=len(bigrams))
+
+    def suggest(self,query):
+        '''
+        Returns a list of auto corrections for the given query
+        '''
+        results={}
+        for cleaned_token in set(Unicode61().tokenize(query)):
+            if len(cleaned_token)>1:
+                results[cleaned_token]=[]
+                for result in self.spell_checker.search(bigrams__allow_boolean=self._generate_bigrams(cleaned_token," OR "))[0:10]:
+                    results[cleaned_token].append((result.token,self._levenshtein_distance(result.token,cleaned_token)))
+                results[cleaned_token]=sorted(results[cleaned_token], key=lambda x: x[1])
+        return results
+
 class PocketSearch:
     '''
     Main class to interact with the search index.
@@ -1224,6 +1321,10 @@ class PocketSearch:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
+        if self.schema._meta.spell_check:
+            self.spell_checker = SpellChecker(search_instance=self)
+        else:
+            self.spell_checker = None
 
     def _open(self):
         if self.db_name is None:
@@ -1547,6 +1648,11 @@ class PocketSearch:
             query_components[len(query_components)-1]=query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
         return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
+
+    def suggest(self,query):
+        if self.schema._meta.spell_check:
+            return self.spell_checker.suggest(query)
+        raise Query.QueryError("Spell checks are not supported in this index.")
 
     def search(self, *args, **kwargs):
         '''
