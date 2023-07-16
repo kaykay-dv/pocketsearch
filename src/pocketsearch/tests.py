@@ -735,7 +735,7 @@ class Unicode61Tests(unittest.TestCase):
             Unicode61(remove_diacritics="8")
             Unicode61(remove_diacritics="b")
             # not allowed, values must be strings
-            Unicode61(remove_diacritics=2)     
+            Unicode61(remove_diacritics=2)
 
     def test_tokenize(self):
         '''
@@ -752,9 +752,9 @@ class Unicode61Tests(unittest.TestCase):
         '''
         under_test = "(This)X'is'Ya-toke2nizeZtest."
         tokens = Unicode61(separators="XYZ").tokenize(under_test)
-        self.assertEqual(len(tokens),5)        
+        self.assertEqual(len(tokens),5)  
 
-    def test_tokenize_custom_categories_and_categories(self):
+    def test_tokenize_custom_categories_and_separators(self):
         '''
         Customize the categories and separators argument
         '''
@@ -763,7 +763,7 @@ class Unicode61Tests(unittest.TestCase):
         # this indicates that only numbers are valid tokens, thus 
         # everything else is considered a separator character
         self.assertEqual(len(tokens),1)
-        self.assertEqual(tokens[0],"2")     
+        self.assertEqual(tokens[0],"2")
 
 class TokenizerTests(unittest.TestCase):
     '''

@@ -3,7 +3,7 @@
 ## Tokenization
 
 In a search index tokenizers control how documents are split into individual "tokens", thus 
-words. pocketsearch uses the internal *unicode61 tokenizer* provided by the FTS5 engine. 
+words. pocketsearch uses the internal [unicode61 tokenizer](https://www.sqlite.org/fts5.html#unicode61_tokenizer) provided by the FTS5 engine. 
 If you want to customize the behavior of the tokenizer you can override the meta class 
 of your schema:
 
@@ -23,7 +23,7 @@ class FileContents(Schema):
 
 Following options are available:
 
-* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e and **a** respectivley )from characters. If you want to keep diacritics, set to "0".
+* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e** and **a** respectivley )from characters. If you want to keep diacritics, set to "0".
 * **categories** - defines characters that are NOT separation characters through unicode categories.
 * **separators** - define additional characters that should be considered as separation characters.
 
