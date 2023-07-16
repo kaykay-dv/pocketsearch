@@ -61,7 +61,7 @@ want to speed up this process you can use the write_buffer_size option:
 
 ```Python
 # Commit changes after 500 documents have been inserted:
-pocketsearch.PocketReader(db_name="my_db.db",write_buffer_size=500)
+pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
 ```
 
 or using the PocketWriter context manager:
