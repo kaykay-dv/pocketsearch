@@ -29,6 +29,7 @@ import pocketsearch
 
 with pocketsearch.PocketWriter(schema=Example,db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
+```
 
 ## Using spellchecking
 
