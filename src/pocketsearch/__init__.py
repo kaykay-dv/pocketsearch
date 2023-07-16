@@ -1414,6 +1414,7 @@ class PocketSearch:
                                                               ",".join(placeholder_values))
         try:
             self.cursor.execute(sql, values)
+            self.write_buffer+=1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
         self.connection.commit()
@@ -1446,7 +1447,6 @@ class PocketSearch:
         Inserts a new document to the search index.
         '''
         self.assure_writeable()
-        self.write_buffer = self.write_buffer + 1
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
@@ -1457,6 +1457,7 @@ class PocketSearch:
         try:
             logger.debug(sql)
             self.cursor.execute(sql, values)
+            self.write_buffer = self.write_buffer + 1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
         self.commit()
@@ -1491,9 +1492,7 @@ class PocketSearch:
         sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
         logger.debug(sql)
         self.cursor.execute(sql, values)
-        if self.write_buffer > self.write_buffer_size:
-            self.write_buffer=0
-            self.connection.commit()        
+        self.write_buffer = self.write_buffer + 1
         self.commit()
 
     def delete(self, rowid):

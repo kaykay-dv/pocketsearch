@@ -583,6 +583,23 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
 
+    def test_buffered_writes(self):
+        '''
+        Test buffered writing
+        '''
+        pocket_search = PocketSearch(write_buffer_size=3,writeable=True)
+        pocket_search.insert(text="A")
+        # inserted row is immediately visible:
+        self.assertEqual(pocket_search.search().count(),1)
+        self.assertEqual(pocket_search.write_buffer,1)
+        pocket_search.insert(text="B")
+        self.assertEqual(pocket_search.search().count(),2)
+        self.assertEqual(pocket_search.write_buffer,2)
+        pocket_search.insert(text="C")
+        self.assertEqual(pocket_search.search().count(),3)
+        # now the write buffer should be set back to 0
+        self.assertEqual(pocket_search.write_buffer,0)
+
 class AutocompleteTest(unittest.TestCase):
     '''
     Tests for autocomplete method.

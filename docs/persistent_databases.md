@@ -13,19 +13,22 @@ Invoking the .close method will commit any unwritten changes to the index and cl
 the database connection to the index.
 
 If you want to open the database at a later stage for searching open it in 
-read-only mode:
+read-only mode use:
 
 ```Python
 pocket_search = PocketSearch(db_name="my_db.db")
 pocket_search.search(text="Hello world")
 ```
 
-or
+or making it explicit:
 
 ```Python
 pocket_search = PocketSearch(db_name="my_db.db",writeable=False)
 pocket_search.search(text="Hello world")
 ```
+
+Be aware that any attempt to write to a search index opened in read-only mode will 
+result in an Exception.
 
 ## PocketReader and PocketWriter classes
 
@@ -40,7 +43,7 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
 
 The connection will be closed implicitly after the context manager has been left. 
 
-In the same way you can open create PocketReader instance to interact with the search 
+In the same way you can create a PocketReader instance to interact with the search 
 index in read-only mode:
 
 ```Python
@@ -57,12 +60,14 @@ By default a commit to the database is executed after each .insert method. If yo
 want to speed up this process you can use the write_buffer_size option:
 
 ```Python
-# Only commit after 500 documents have been inserted:
+# Commit changes after 500 documents have been inserted:
 pocketsearch.PocketReader(db_name="my_db.db",write_buffer_size=500)
 ```
 
+or using the PocketWriter context manager:
+
 ```Python
-# Only commit after 500 documents have been inserted using a PocketWriter
+# Commit changes after 500 documents have been inserted using a PocketWriter
 with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
