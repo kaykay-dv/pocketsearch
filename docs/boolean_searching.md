@@ -64,7 +64,7 @@ Q objects with keyword arguments and you can only provide one field per Q object
 
 ```Python
 # This will NOT work:
-pocket_search.search(Q(text="world") , filename="a.txt")
+pocket_search.search(Q(text="world") , filename="a.txt"))
 # This will work neither:
 pocket_search.search(Q(text="world",filename="a.txt"))
 ```

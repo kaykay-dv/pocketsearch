@@ -13,7 +13,7 @@ pocket_search.search(text="hello")[0].text
 
 Be aware that the search methods limits results to 10 by default. Results 
 are ordered by the rank of the search result which is calculated by the 
-FTS extension in sqlite (see https://www.sqlite.org/fts5.html#the_bm25_function for more details) 
+FTS extension in sqlite (see the [B25 function](https://www.sqlite.org/fts5.html#the_bm25_function) for more details) 
 showing how relevant a document is to a given query. 
 
 The API also supports iteration:
