@@ -28,7 +28,7 @@ A separate search index is built behind the curtains once the connection is clos
 import pocketsearch
 
 with pocketsearch.PocketWriter(schema=Example,db_name="my_db.db") as pocket_writer:
-    pocket_writer.insert(text="Hello world")
+    pocket_writer.insert(title="Hello",body="World",category="Default")
 ```
 
 ## Using spellchecking
