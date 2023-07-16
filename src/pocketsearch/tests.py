@@ -14,7 +14,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import PocketReader,PocketWriter,FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
+from pocketsearch import *
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -37,7 +37,6 @@ class CustomField(Field):
     '''
     Field with no data type provided
     '''
-    pass
 
 class Page(Schema):
     '''

@@ -1237,6 +1237,9 @@ class PocketSearch:
 
     def _close(self):
         if self.connection:
+            if self.writeable:
+                logger.debug("Committing")
+                self.commit()
             logger.debug("Closing connection")
             self.connection.close()
             self.connection = None
