@@ -62,15 +62,19 @@ If you want to speed up inserts, you can use the write_buffer_size option:
 ```Python
 # Commit is done after 500 documents have been inserted:
 pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
+# Close the connection and write out any items left in the buffer
+pocketsearch.close()
 ```
 
-or using the PocketWriter context manager:
+Alternativley you can use the PocketWriter context manager:
 
 ```Python
 # Commit is done after 500 documents have been inserted using a PocketWriter
 with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
+
+
 
 The buffer applies to following operation in the database:
 
