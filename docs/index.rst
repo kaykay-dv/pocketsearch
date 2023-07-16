@@ -32,6 +32,7 @@ Python 3.9, Python 3.10 and Python 3.11.
    searching_non_text_data.md
    formatting.md
    autocomplete.md
+   spellchecker.md
    advanced.md
    contribute.md
    license.md

@@ -1,8 +1,10 @@
 # Spell checker
 
 pocketsearch provides a simple implementation of a SpellChecker that can be used to 
-correct misspelled tokens in a query. In order to support spellchecking, you have 
-to to setup your schema as follows:
+correct misspelled tokens in a query. By default spell checking is turned off.
+In order to support spellchecking, you have to to setup your schema as follows:
+
+## Enabling spell checking
 
 ```Python
 from pocketsearch import Schema, Text
@@ -22,6 +24,8 @@ Any field of type **Text** where index is set to True will be considered for spe
 
 A separate search index is built behind the curtains once the connection is closed:
 
+## Using spellchecking
+
 ```Python
 import pocketsearch
 
@@ -40,7 +44,9 @@ Spellchecking is done as follows:
 * Bigrams are stored in the spellchecker index
 * . suggest will search the bigrams order them by rank and additionally calculated the Levensthein distance for the top 15 suggestions.
 
+## Limitations
 
+* 
 
 
 
