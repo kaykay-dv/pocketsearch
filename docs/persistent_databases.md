@@ -57,7 +57,7 @@ Again, the connection will be closed after context manager has been left.
 ## Speeding up inserts: Write buffers
 
 By default a commit to the database is executed after each modification to the database. 
-If you want to speed up this process you can use the write_buffer_size option:
+If you want to speed up inserts, you can use the write_buffer_size option:
 
 ```Python
 # Commit is done after 500 documents have been inserted:
