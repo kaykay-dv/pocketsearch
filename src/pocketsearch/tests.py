@@ -178,6 +178,18 @@ class TokenInfoTest(BaseTest):
         self.assertEqual(tokens[0]["num_documents"],2)
         self.assertEqual(tokens[0]["total_count"],4)
 
+    def test_delete_tokens(self):
+        '''
+        Test, if deletes are propagated to the token statistics
+        '''
+        rowid = self.pocket_search.search(text="fox")[0].id
+        tokens = list(self.pocket_search.tokens())
+        self.assertEqual(len(tokens),16)
+        self.pocket_search.delete(rowid=rowid)
+        # Number of tokens should now be reduced:
+        tokens = list(self.pocket_search.tokens())
+        self.assertEqual(len(tokens),9)
+
     def test_empty_pocket(self):
         '''
         Empty index should lead to an empty list
@@ -710,6 +722,9 @@ class AutocompleteTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
 
 class Unicode61Tests(unittest.TestCase):
+    '''
+    Tests for Unicode61 tokenizer
+    '''
 
     def test_valid_invalid_diacritics(self):
         '''
@@ -930,6 +945,12 @@ class MultipleFieldRankingtest(unittest.TestCase):
 
 
 class StemmingTests(unittest.TestCase):
+    '''
+    Stemming tests are currently only here 
+    to illustrate that stemming is not supported.
+    In future (once PorterStemmer is supported) these 
+    tests will be extended.
+    '''
 
     def setUp(self):
         self.data = [
