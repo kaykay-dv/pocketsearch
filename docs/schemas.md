@@ -49,8 +49,8 @@ With respect to naming your fields following restrictions apply:
 
 Moreover field names may not be composed of reserved SQL keywords.
 
-| :exclamation:  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document. The ID field is used for deleting or updating documents.   |
-|-----------------------------------------|
+> **_NOTE:_**  While not explicitly set, pocketsearch automatically adds an "id" field to the schema (using the INTEGER data type plus the AUTOINCREMENT option of sqlite). It is used as the primary key for each document. The ID field is used to delete or 
+update documents.
 
 Here is an example on how to use field definitions:
 

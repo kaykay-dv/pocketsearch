@@ -56,18 +56,27 @@ Again, the connection will be closed after context manager has been left.
 
 ## Speeding up inserts: Write buffers
 
-By default a commit to the database is executed after each .insert method. If you 
-want to speed up this process you can use the write_buffer_size option:
+By default a commit to the database is executed after each modification to the database. 
+If you want to speed up this process you can use the write_buffer_size option:
 
 ```Python
-# Commit changes after 500 documents have been inserted:
+# Commit is done after 500 documents have been inserted:
 pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
 ```
 
 or using the PocketWriter context manager:
 
 ```Python
-# Commit changes after 500 documents have been inserted using a PocketWriter
+# Commit is done after 500 documents have been inserted using a PocketWriter
 with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
+
+The buffer applies to following operation in the database:
+
+* Inserting documents
+* Updateing documents
+* Deleting documents
+
+
+

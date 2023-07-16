@@ -1504,6 +1504,7 @@ class PocketSearch:
         sql = "delete from %s where id = ?" % (self.schema.name)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
+        self.write_buffer = self.write_buffer + 1
         self.commit()
 
     def delete_all(self):
