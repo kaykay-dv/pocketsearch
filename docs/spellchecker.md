@@ -1,7 +1,7 @@
 # Spell checker
 
 pocketsearch provides a simple implementation of a SpellChecker that can be used to 
-correct misspelled tokens in a query. By default spell checking is turned off.
+correct misspelled tokens in a query. By default spell checking is turned **off**.
 In order to support spellchecking, you have to to setup your schema as follows:
 
 ## Enabling spell checking
