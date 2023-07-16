@@ -74,8 +74,6 @@ with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pock
     pocket_writer.insert(text="Hello world")
 ```
 
-
-
 The buffer applies to following operation in the database:
 
 * Inserting documents

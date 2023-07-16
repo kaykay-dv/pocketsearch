@@ -65,6 +65,22 @@ Here is an example on how to use field definitions:
         f6 = Date()
 ```
 
+## Selecting data using custom schemas
+
+When you open a database in readonly mode that has a custom schema, you have to 
+make sure, to provide the schema when creating the object:
+
+```Python
+pocketsearch = PocketSearch(schema=Example)
+```
+
+or using PocketReaders:
+
+```Python
+with PocketReader(schema=Example) as pocket_reader:
+    pocket_reader.search(f2='some text')
+```
+
 ## Inserting data
 
 When inserting or updating data, provide the fields you want to populate as 
