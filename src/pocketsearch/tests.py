@@ -544,6 +544,18 @@ class IDFieldTest(unittest.TestCase):
 
 
 class IndexUpdateTests(BaseTest):
+    '''
+    Test updates on schemas
+    '''
+
+    class Example(Schema):
+        '''
+        Multi-field schema to test updates to 
+        multiple fields in one .update call
+        '''
+
+        f1 = Text(index=True)
+        f2 = Text(index=True)
 
     def test_get_entry(self):
         '''
@@ -582,6 +594,17 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="fox").count(), 0)
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
+
+    def test_update_multiple_fields(self):
+        '''
+        Test updating multiple fields
+        '''
+        p = PocketSearch(schema=self.Example)
+        p.insert(f1="a",f2="b")
+        rowid = p.search(f1="a",f2="b")[0].id
+        p.update(rowid=rowid,f1="c",f2="d")
+        self.assertEqual(p.search(f1="a",f2="b").count(),0)
+        self.assertEqual(p.search(f1="c",f2="d").count(),1)
 
     def test_buffered_writes(self):
         '''

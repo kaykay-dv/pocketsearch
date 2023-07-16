@@ -14,7 +14,7 @@ class FileContents(Schema):
     filename = Text(is_id_field=True)
 ```
 
-If we want to use this schema, we have to provide it to the PocketSearch instance
+If we want to use this schema, we have to provide it to the PocketSearch instance:
 
 ```Python
 # create pocketsearch instance and provide schema 
@@ -85,13 +85,25 @@ When using the .insert method you have to provide values for **all** fields.
 
 ## Updating data
 
-Using the **id** field of a document, you can run updates:
+When storing schemas, pocketsearch associated each document with a unique numeric 
+id. This id can be retrieved through search:
 
 ```Python
-pocket_search.update(rowid=1, text="The updated text.")
+pocket_search.search(f1=32)[0].id
+1
 ```
 
-If want to update more fields, simply provide them as keyword arguments.
+Using this **id** field of a document, you can run updates on a given document:
+
+```Python
+pocket_search.update(rowid=1, f1=48)
+```
+
+If want to update more fields, simply provide them as keyword arguments:
+
+```Python
+pocket_search.update(rowid=1, f1=48, f2='updated text')
+```
 
 ## Deleting data
 
