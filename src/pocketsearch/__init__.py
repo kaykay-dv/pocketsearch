@@ -1238,8 +1238,7 @@ class PocketSearch:
     def _close(self):
         if self.connection:
             if self.writeable:
-                logger.debug("Committing")
-                self.commit()
+                self.commit(force=True)
             logger.debug("Closing connection")
             self.connection.close()
             self.connection = None
@@ -1419,14 +1418,15 @@ class PocketSearch:
             raise self.DatabaseError(sql_error)
         self.connection.commit()
 
-    def commit(self):
+    def commit(self,force=False):
         '''
         Commit current changes to database. Commits are only performed 
         when the buffer is full.
         '''
-        if self.write_buffer > self.write_buffer_size:
-            self.write_buffer=0 # reset buffer
+        if self.write_buffer >= self.write_buffer_size or force:
+            logger.debug("Committing.")
             self.connection.commit()
+            self.write_buffer=0 # reset buffer
 
     def optimize(self):
         '''

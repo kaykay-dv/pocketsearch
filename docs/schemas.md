@@ -1,6 +1,7 @@
 # Defining Schemas
 
-A search index may have an arbitrary list of fields that can be searched. Schemas 
+By default PocketSearch assumes that your search instance has only one field called text (the DefaultSchema).
+However, a search index may have an arbitrary list of fields that can be searched. Schemas 
 are defined through Schema classes:
 
 ```Python
@@ -11,8 +12,12 @@ class FileContents(Schema):
 
     text = Text(index=True)
     filename = Text(is_id_field=True)
+```
 
-# create pocketsearch instance and provide schema
+If we want to use this schema, we have to provide it to the PocketSearch instance
+
+```Python
+# create pocketsearch instance and provide schema 
 pocket_search.PocketSearch(schema=FileContents)
 pocket_search.insert(text="Hello world",filename="a.txt")
 ```

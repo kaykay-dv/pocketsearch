@@ -319,6 +319,23 @@ class PhraseSearch(unittest.TestCase):
         self.assertEqual(pocket_search.search(text='"this is" "a phrase"').count(), 1)
         self.assertEqual(pocket_search.search(text='"this is" "phrase a"').count(), 0)
 
+class PermanentDatabaseTest(unittest.TestCase):
+
+    def test_create_permanent_db(self):
+        '''
+        Test writing to a database on disk and reading 
+        afterwards from it:
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            # set write buffer size to 100, so we can test
+            # if the context manager does the final commit right:
+            with PocketWriter(db_name=db_name,write_buffer_size=100) as pocket_writer:
+                pocket_writer.insert(text="Hello world.")
+            # read out again and do a count
+            with PocketReader(db_name=db_name) as pocket_reader:
+                num_docs = pocket_reader.search(text="world").count()
+                self.assertEqual(num_docs,1)
 
 class IndexTest(BaseTest):
 
