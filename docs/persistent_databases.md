@@ -75,7 +75,7 @@ with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pock
 The buffer applies to following operation in the database:
 
 * Inserting documents
-* Updateing documents
+* Updating documents
 * Deleting documents
 
 
