@@ -51,7 +51,8 @@ Spellchecking is done as follows:
 
 ## Limitations
 
-* 
+* Currently the spell checking index is entirely rebuilt when inserting, updating or 
+deleting data.
 
 
 
