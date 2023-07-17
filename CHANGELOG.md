@@ -4,6 +4,8 @@
 * Added context managers PocketReader and PocketWriter
 * Added Spell Checker
 * Fixed typos in the documentation
+* Error that is thrown if a schema field does not have a data type is thrown earlier during schema creation
+* Schema field objects are now (shallow-) copied when a schema instance is created to avoid side-effects when multiple schema instances are in use.
 * Made PocketSearch._close a public method
 
 ## Version 0.11.0

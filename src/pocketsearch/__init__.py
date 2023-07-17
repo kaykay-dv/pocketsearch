@@ -214,6 +214,7 @@ class Rank(Field):
     '''
 
     hidden = True
+    data_type = "REAL"
 
     def get_full_qualified_name(self):
         return self.name
@@ -287,12 +288,6 @@ class Schema:
     rank = Rank()
 
     class Meta:
-        '''
-        Additional options for setting up FTS5
-        See https://www.sqlite.org/fts5.html for more information.
-        If a value is set to None, we leave it up to sqlite to
-        set proper defaults.
-        '''
         tokenizer = Unicode61()
         spell_check = False
         prefix_index = None
@@ -346,8 +341,16 @@ class Schema:
         self.id_field = None
         field_index=0
         for elem in dir(self):
-            obj = getattr(self, elem)
+            # Create and store a (shallow) copy of the class variable
+            # in order to avoid any side effects. All schema classes 
+            # share the IDField and the RankField and both have 
+            # instance variable. If we would not have a copy of these
+            # class-wide objects we run into scenarios (e.g. changing index)
+            # that would affect all schemas an application uses            
+            obj = copy.copy(getattr(self, elem))
             if isinstance(obj, Field):
+                if obj.data_type is None:
+                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (obj.__class__.__name__, elem))
                 if elem.startswith("_") or "__" in elem:
                     raise self.SchemaError(
                         "Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." %
@@ -1174,7 +1177,7 @@ class PocketWriter(PocketContextManager):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if self.pocketsearch.schema._meta.spell_check:
             logger.debug("Building spell checking dictionary")
-            self.pocketsearch.spell_checker.build()
+            self.pocketsearch._get_or_create_spellchecker_instance().build()
         self.pocketsearch.close()
 
 class SpellChecker:
@@ -1193,7 +1196,7 @@ class SpellChecker:
 
     def __init__(self,search_instance):
         self.search_instance = search_instance
-        self.spell_checker = PocketSearch(search_instance.db_name,
+        self.spell_checker = PocketSearch(db_name=search_instance.db_name,
                                           index_name="spellcheck_%s" % search_instance.index_name,
                                           writeable=search_instance.writeable,
                                           schema=self.SpellCheckerSchema,
@@ -1242,7 +1245,6 @@ class SpellChecker:
         self.spell_checker.delete_all()
         for token_info in self.search_instance.tokens():
             token=token_info.get("token")
-            print(token)
             bigrams = self._generate_bigrams(token)
             self.spell_checker.insert(token=token,bigrams=bigrams,bigrams_length=len(bigrams))
 
@@ -1310,6 +1312,7 @@ class PocketSearch:
             self.connection = self._open()
         else:
             self.connection = connection
+            logger.debug("Re-using existing database connection %s" % connection)            
         self.cursor = self.connection.cursor()
         self.schema = schema(index_name)
         self.db_name = db_name
@@ -1321,10 +1324,12 @@ class PocketSearch:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
-        if self.schema._meta.spell_check:
+        self.spell_checker = None
+
+    def _get_or_create_spellchecker_instance(self):
+        if self.spell_checker is None:
             self.spell_checker = SpellChecker(search_instance=self)
-        else:
-            self.spell_checker = None
+        return self.spell_checker
 
     def _open(self):
         if self.db_name is None:
@@ -1651,7 +1656,7 @@ class PocketSearch:
 
     def suggest(self,query):
         if self.schema._meta.spell_check:
-            return self.spell_checker.suggest(query)
+            return self._get_or_create_spellchecker_instance().suggest(query)
         raise Query.QueryError("Spell checks are not supported in this index.")
 
     def search(self, *args, **kwargs):
