@@ -93,7 +93,7 @@ return the size of the slicing window.
 
 ## Prefix queries
 
-> **_NOTE:__** pocketsearch borrows Django's concept of **lookups**. 
+> **_NOTE:_** pocketsearch borrows Django's concept of **lookups**. 
 In a query, a lookup is added to a field by a double underscore:
 
 If you want to search for substrings, you can use prefix queries, by 
