@@ -32,8 +32,10 @@ result in an Exception.
 
 ## PocketReader and PocketWriter classes
 
-An alternative way to handle writing and reading search indices is to use the PocketReader
+The **preferred way** to handle writing and reading search indices is to use the PocketReader
 and PocketWriter context manager classes:
+
+### Writing to an index
 
 ```Python
 from pocketsearch import PocketWriter
@@ -41,7 +43,9 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
 
-The connection will be closed implicitly after the context manager has been left. 
+The connection will be closed implicitly after the context manager has been left.
+
+### Reading from an index
 
 In the same way you can create a PocketReader instance to interact with the search 
 index in read-only mode:
@@ -54,7 +58,8 @@ with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
 
 Again, the connection will be closed after context manager has been left.
 
-
+> **_NOTE:_**  Some of pocketsearch's functionality (such as spell checking) is only available when using 
+PocketReader and PocketWriter instances.
 
 
 

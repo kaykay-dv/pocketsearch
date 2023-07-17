@@ -31,6 +31,7 @@ Following fields are available:
 | Text         | TEXT   |
 | Int          | INTEGER  |
 | Real         | REAL  |
+| Blob         | Blob  |
 | Numeric      | Numeric  |
 | Date         | Date  |
 | Datetime     | Datetime  |
