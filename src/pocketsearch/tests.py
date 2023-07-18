@@ -14,7 +14,11 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import FileSystemReader, Text, PocketSearch, Schema, Query, Field, Int, Real, Blob, Date, Datetime, Q, Unicode61
+from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
+from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date
+from pocketsearch import Unicode61
+from pocketsearch import Query, Q
+from pocketsearch import FileSystemReader
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -37,7 +41,6 @@ class CustomField(Field):
     '''
     Field with no data type provided
     '''
-    pass
 
 class Page(Schema):
     '''
@@ -102,9 +105,8 @@ class SchemaTest(unittest.TestCase):
         '''
         Schema creation test with field having no data type
         '''                        
-        schema = SchemaCustomField(name="broken")
         with self.assertRaises(Schema.SchemaError):
-            schema.custom_field.to_sql()
+            schema = SchemaCustomField(name="broken")
 
 class BaseTest(unittest.TestCase):
     '''
@@ -178,6 +180,18 @@ class TokenInfoTest(BaseTest):
         self.assertEqual(tokens[0]["token"],"the")
         self.assertEqual(tokens[0]["num_documents"],2)
         self.assertEqual(tokens[0]["total_count"],4)
+
+    def test_delete_tokens(self):
+        '''
+        Test, if deletes are propagated to the token statistics
+        '''
+        rowid = self.pocket_search.search(text="fox")[0].id
+        tokens = list(self.pocket_search.tokens())
+        self.assertEqual(len(tokens),16)
+        self.pocket_search.delete(rowid=rowid)
+        # Number of tokens should now be reduced:
+        tokens = list(self.pocket_search.tokens())
+        self.assertEqual(len(tokens),9)
 
     def test_empty_pocket(self):
         '''
@@ -320,8 +334,38 @@ class PhraseSearch(unittest.TestCase):
         self.assertEqual(pocket_search.search(text='"this is" "a phrase"').count(), 1)
         self.assertEqual(pocket_search.search(text='"this is" "phrase a"').count(), 0)
 
+class PermanentDatabaseTest(unittest.TestCase):
+
+    def test_create_permanent_db(self):
+        '''
+        Test writing to a database on disk and reading 
+        afterwards from it:
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            # set write buffer size to 100, so we can test
+            # if the context manager does the final commit right:
+            with PocketWriter(db_name=db_name,write_buffer_size=100) as pocket_writer:
+                pocket_writer.insert(text="Hello world.")
+            # read out again and do a count
+            with PocketReader(db_name=db_name) as pocket_reader:
+                num_docs = pocket_reader.search(text="world").count()
+                self.assertEqual(num_docs,1)
 
 class IndexTest(BaseTest):
+
+    def test_context_manager(self):
+        '''
+        Tests for in-memory context managers
+        '''
+        # Create in-memory database:
+        with PocketWriter() as pocketsearch:
+            pocketsearch.insert(text="Hello world.")
+            self.assertEqual(pocketsearch.search().count(),1)
+        # Create reader - this should return 0 results
+        # as the PocketReader creates a new database:
+        with PocketReader() as pocketsearch:
+            self.assertEqual(pocketsearch.search(text="Hello world.").count(),0)
 
     def test_write_to_read_only_index(self):
         pocket_search = PocketSearch(writeable=False)
@@ -515,6 +559,18 @@ class IDFieldTest(unittest.TestCase):
 
 
 class IndexUpdateTests(BaseTest):
+    '''
+    Test updates on schemas
+    '''
+
+    class Example(Schema):
+        '''
+        Multi-field schema to test updates to 
+        multiple fields in one .update call
+        '''
+
+        f1 = Text(index=True)
+        f2 = Text(index=True)
 
     def test_get_entry(self):
         '''
@@ -554,6 +610,34 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(self.pocket_search.search(text="dog").count(), 1)
         self.assertEqual(self.pocket_search.search().count(), 3)
 
+    def test_update_multiple_fields(self):
+        '''
+        Test updating multiple fields
+        '''
+        p = PocketSearch(schema=self.Example)
+        p.insert(f1="a",f2="b")
+        rowid = p.search(f1="a",f2="b")[0].id
+        p.update(rowid=rowid,f1="c",f2="d")
+        self.assertEqual(p.search(f1="a",f2="b").count(),0)
+        self.assertEqual(p.search(f1="c",f2="d").count(),1)
+
+    def test_buffered_writes(self):
+        '''
+        Test buffered writing
+        '''
+        pocket_search = PocketSearch(write_buffer_size=3,writeable=True)
+        pocket_search.insert(text="A")
+        # inserted row is immediately visible:
+        self.assertEqual(pocket_search.search().count(),1)
+        self.assertEqual(pocket_search.write_buffer,1)
+        pocket_search.insert(text="B")
+        self.assertEqual(pocket_search.search().count(),2)
+        self.assertEqual(pocket_search.write_buffer,2)
+        pocket_search.insert(text="C")
+        self.assertEqual(pocket_search.search().count(),3)
+        # now the write buffer should be set back to 0
+        self.assertEqual(pocket_search.write_buffer,0)
+
 class AutocompleteTest(unittest.TestCase):
     '''
     Tests for autocomplete method.
@@ -568,6 +652,13 @@ class AutocompleteTest(unittest.TestCase):
             "The return of the Jedi"
         ]:
             self.pocket_search.insert(text=elem)
+
+    def test_args_provided(self):
+        '''
+        No positional arguments are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.autocomplete("Ind")
 
     def test_autocomplete_multiple_keywords(self):
         '''
@@ -638,9 +729,12 @@ class AutocompleteTest(unittest.TestCase):
         Test if quoting, works. Special characters are not allowed 
         in autocomplete queries
         '''
-        self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(text="*").count(),0)
 
 class Unicode61Tests(unittest.TestCase):
+    '''
+    Tests for Unicode61 tokenizer
+    '''
 
     def test_valid_invalid_diacritics(self):
         '''
@@ -651,7 +745,7 @@ class Unicode61Tests(unittest.TestCase):
             Unicode61(remove_diacritics="8")
             Unicode61(remove_diacritics="b")
             # not allowed, values must be strings
-            Unicode61(remove_diacritics=2)     
+            Unicode61(remove_diacritics=2)
 
     def test_tokenize(self):
         '''
@@ -668,9 +762,9 @@ class Unicode61Tests(unittest.TestCase):
         '''
         under_test = "(This)X'is'Ya-toke2nizeZtest."
         tokens = Unicode61(separators="XYZ").tokenize(under_test)
-        self.assertEqual(len(tokens),5)        
+        self.assertEqual(len(tokens),5)  
 
-    def test_tokenize_custom_categories_and_categories(self):
+    def test_tokenize_custom_categories_and_separators(self):
         '''
         Customize the categories and separators argument
         '''
@@ -679,7 +773,7 @@ class Unicode61Tests(unittest.TestCase):
         # this indicates that only numbers are valid tokens, thus 
         # everything else is considered a separator character
         self.assertEqual(len(tokens),1)
-        self.assertEqual(tokens[0],"2")     
+        self.assertEqual(tokens[0],"2")
 
 class TokenizerTests(unittest.TestCase):
     '''
@@ -747,8 +841,8 @@ class TokenizerTests(unittest.TestCase):
         self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*",separators="4")
         pocket_search = PocketSearch(schema=self.SchemaDiacritics)
         pocket_search.insert(text=under_test)
-        for item in pocket_search.tokens():
-            print(item)
+        # This results in only one token as everything else is considered a separator
+        self.assertEqual(len(list(pocket_search.tokens())),1)
 
 class CharacterTest(unittest.TestCase):
     '''
@@ -861,6 +955,12 @@ class MultipleFieldRankingtest(unittest.TestCase):
 
 
 class StemmingTests(unittest.TestCase):
+    '''
+    Stemming tests are currently only here 
+    to illustrate that stemming is not supported.
+    In future (once PorterStemmer is supported) these 
+    tests will be extended.
+    '''
 
     def setUp(self):
         self.data = [
@@ -1048,6 +1148,62 @@ class FileSystemReaderTests(unittest.TestCase):
             # change as they have only been updated
             pocket_search.build(reader)
             self.assertEqual(pocket_search.search(text="world").count(), 3)
+
+class SpellCheckerTest(BaseTest):
+    '''
+    Tests for spell checking class
+    '''
+
+    class TestSchema(Schema):
+        '''
+        Test schema supporting spell checking
+        '''
+
+        class Meta:
+            spell_check = True
+
+        title = Text(index=True)
+        text = Text(index=True)
+
+    def test_suggest_spell_check_not_enabled(self):
+        '''
+        A QueryError should be raised if someone 
+        tries to access spell checking when they 
+        have not been enabled in schema.
+        '''
+        p = PocketSearch()
+        with self.assertRaises(Query.QueryError):
+            p.suggest("test")
+
+    def test_suggest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=self.db_name,schema=self.TestSchema) as pocketwriter:
+                for title, text in [
+                    ("Blade Runner","Written in 1982"),
+                    ("Indiana Jones 1","Written in the eighties"),
+                    ("Indiana Jones 2","Again in the eighties"),
+                    ("Hello","World")
+                ]:
+                    pocketwriter.insert(title=title,text=text)
+            with PocketReader(db_name=self.db_name,schema=self.TestSchema) as pocketreader:
+                results = pocketreader.suggest("' lInddjiana agn jin th?i _writen& eigh  ")
+                expected = {'agn': [('again', 2)],
+                    'eigh': [('eighties', 4)],
+                    'jin': [('in', 1), ('again', 3), ('indiana', 5)],
+                    'lInddjiana': [('indiana', 4), ('in', 8), ('again', 8)],
+                    'th': [('the', 1)],
+                    'writen': [('written', 1)]}
+                for token, suggestions in results.items():
+                    self.assertEqual(token in expected,True)
+                    #self.assertEqual(expected[token]==suggestions[token],True)
+                # some edge cases
+                self.assertEqual(len(pocketreader.suggest("")),0)
+                self.assertEqual(len(pocketreader.suggest("!?.*")),0)
+                # this will be ignored (only one character):
+                self.assertEqual(len(pocketreader.suggest("h")),0)
+                # test standard search
+                pocketreader.search(title="blade")[0].text
 
 
 if __name__ == '__main__':

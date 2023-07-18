@@ -5,10 +5,10 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 setuptools.setup(
     name = "pocketsearch",
-    version = "0.11.0",
+    version = "0.12.0",
     author = "kaykay-dv",
     author_email = "kaykay2306@gmail.com",
-    description = "A pure-Python full text indexing search engine based on sqlite and the FTS5 extension.",
+    description = "A pure-Python full text indexing search library based on sqlite and the FTS5 extension.",
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://github.com/kaykay-dv/pocketsearch/",

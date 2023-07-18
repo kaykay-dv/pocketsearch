@@ -214,6 +214,7 @@ class Rank(Field):
     '''
 
     hidden = True
+    data_type = "REAL"
 
     def get_full_qualified_name(self):
         return self.name
@@ -287,13 +288,8 @@ class Schema:
     rank = Rank()
 
     class Meta:
-        '''
-        Additional options for setting up FTS5
-        See https://www.sqlite.org/fts5.html for more information.
-        If a value is set to None, we leave it up to sqlite to
-        set proper defaults.
-        '''
         tokenizer = Unicode61()
+        spell_check = False
         prefix_index = None
 
     RESERVED_KEYWORDS = [
@@ -317,18 +313,26 @@ class Schema:
         Thrown, if the schema cannot be generated.
         '''
 
-    def __init__(self, name):
-        self._meta = self.Meta()
+    def _set_meta_defaults(self):
         try:
             self._meta.prefix_index
         except AttributeError:
-            # set reasonable default
             self._meta.prefix_index = None
         try:
             self._meta.tokenizer
         except AttributeError:
-            # set reasonable default
-            self._meta.tokenizer = Unicode61()  
+            # FIXME: might have undesired 
+            # side effects / using another 
+            # exception here?
+            self._meta.tokenizer = Unicode61()
+        try:
+            self._meta.spell_check
+        except AttributeError:
+            self._meta.spell_check=False
+
+    def __init__(self, name):
+        self._meta = self.Meta()
+        self._set_meta_defaults()
         self.name = name
         self.fields = {}
         self.field_index = {} # required by some SQL functions, e.g. highlight
@@ -337,8 +341,16 @@ class Schema:
         self.id_field = None
         field_index=0
         for elem in dir(self):
-            obj = getattr(self, elem)
+            # Create and store a (shallow) copy of the class variable
+            # in order to avoid any side effects. All schema classes 
+            # share the IDField and the RankField and both have 
+            # instance variable. If we would not have a copy of these
+            # class-wide objects we run into scenarios (e.g. changing index)
+            # that would affect all schemas an application uses            
+            obj = copy.copy(getattr(self, elem))
             if isinstance(obj, Field):
+                if obj.data_type is None:
+                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (obj.__class__.__name__, elem))
                 if elem.startswith("_") or "__" in elem:
                     raise self.SchemaError(
                         "Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." %
@@ -1128,6 +1140,127 @@ class Query:
     def __iter__(self):
         return iter(self._query())
 
+class PocketContextManager(abc.ABC):
+
+    def __enter__(self,*args,**kwargs):
+        return self.pocketsearch
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.pocketsearch.close()
+
+class PocketReader(PocketContextManager):
+    '''
+    Simple context manager opening a pocket search instance 
+    in read-only mode.
+    '''
+
+    def __init__(self,db_name=None,
+                      schema=DefaultSchema):
+        self.pocketsearch = PocketSearch(db_name=db_name,schema=schema)
+
+class PocketWriter(PocketContextManager):
+    '''
+    Simple context manager opening a pocket search instance 
+    in read/write mode.
+    '''    
+
+    def __init__(self,db_name=None,
+                 schema=DefaultSchema,
+                 write_buffer_size=1):
+        self.pocketsearch = PocketSearch(
+            db_name=db_name,
+            schema=schema,
+            writeable=True,
+            write_buffer_size=write_buffer_size
+        )
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if self.pocketsearch.schema._meta.spell_check:
+            logger.debug("Building spell checking dictionary")
+            self.pocketsearch._get_or_create_spellchecker_instance().build()
+        self.pocketsearch.close()
+
+class SpellChecker:
+    '''
+    A simplistic implementation of a spellchecker using a PocketSearch 
+    instance in the background. 
+    '''
+
+    class SpellCheckerSchema(Schema):
+        '''
+        Schema to store the spelling suggestions
+        '''
+        token = Text()
+        bigrams = Text(index=True)
+        bigrams_length = Int(index=True)
+
+    def __init__(self,search_instance):
+        self.search_instance = search_instance
+        self.spell_checker = PocketSearch(db_name=search_instance.db_name,
+                                          index_name="spellcheck_%s" % search_instance.index_name,
+                                          writeable=search_instance.writeable,
+                                          schema=self.SpellCheckerSchema,
+                                          connection=search_instance.connection,
+                                          write_buffer_size=search_instance.write_buffer_size)
+
+    def _generate_bigrams(self,token,operator=" "):
+        bigrams = []
+        for i in range(len(token) - 1):
+            bigram = token[i:i+2]
+            bigrams.append(bigram)
+        return operator.join(bigrams)
+
+    def _levenshtein_distance(self,word1, word2):
+        m, n = len(word1), len(word2)
+
+        # Create a distance matrix
+        distance = [[0] * (n + 1) for _ in range(m + 1)]
+
+        # Initialize the first row and column of the matrix
+        for i in range(m + 1):
+            distance[i][0] = i
+        for j in range(n + 1):
+            distance[0][j] = j
+
+        # Calculate the minimum edit distance
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if word1[i - 1] == word2[j - 1]:
+                    distance[i][j] = distance[i - 1][j - 1]
+                else:
+                    distance[i][j] = min(
+                        distance[i - 1][j] + 1,  # Deletion
+                        distance[i][j - 1] + 1,  # Insertion
+                        distance[i - 1][j - 1] + 1  # Substitution
+                    )
+        return distance[m][n]
+
+
+    def build(self):
+        '''
+        Walk through the token of the given search_instance and populate the 
+        spell checking index. This methods clear the spelling index and 
+        builds it entirely from scratch again. 
+        '''
+        self.spell_checker.delete_all()
+        for token_info in self.search_instance.tokens():
+            token=token_info.get("token")
+            bigrams = self._generate_bigrams(token)
+            self.spell_checker.insert(token=token,bigrams=bigrams,bigrams_length=len(bigrams))
+
+    def suggest(self,query):
+        '''
+        Returns a list of auto corrections for the given query
+        '''
+        results={}
+        for cleaned_token in set(Unicode61().tokenize(query)):
+            if len(cleaned_token)>1:
+                results[cleaned_token]=[]
+                for result in self.spell_checker.search(bigrams__allow_boolean=self._generate_bigrams(cleaned_token," OR "))[0:10]:
+                    results[cleaned_token].append((result.token,self._levenshtein_distance(result.token,cleaned_token)))
+                results[cleaned_token]=sorted(results[cleaned_token], key=lambda x: x[1])
+        return results
+
 class PocketSearch:
     '''
     Main class to interact with the search index.
@@ -1179,6 +1312,7 @@ class PocketSearch:
             self.connection = self._open()
         else:
             self.connection = connection
+            logger.debug("Re-using existing database connection %s" % connection)            
         self.cursor = self.connection.cursor()
         self.schema = schema(index_name)
         self.db_name = db_name
@@ -1190,19 +1324,33 @@ class PocketSearch:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
+        self.spell_checker = None
+
+    def _get_or_create_spellchecker_instance(self):
+        if self.spell_checker is None:
+            self.spell_checker = SpellChecker(search_instance=self)
+        return self.spell_checker
 
     def _open(self):
         if self.db_name is None:
+            logger.debug("Opening connection to in-memory db")
             connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         else:
+            logger.debug("Opening connection to db %s" % self.db_name)
             connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         connection.row_factory = sqlite3.Row
         return connection
 
     def _close(self):
         if self.connection:
+            if self.writeable:
+                self.commit(force=True)
+            logger.debug("Closing connection")
             self.connection.close()
             self.connection = None
+
+    # For backwards compatibility reasons:
+    close = _close
 
     def assure_writeable(self):
         '''
@@ -1372,18 +1520,20 @@ class PocketSearch:
                                                               ",".join(placeholder_values))
         try:
             self.cursor.execute(sql, values)
+            self.write_buffer+=1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
         self.connection.commit()
 
-    def commit(self):
+    def commit(self,force=False):
         '''
         Commit current changes to database. Commits are only performed 
         when the buffer is full.
         '''
-        if self.write_buffer > self.write_buffer_size:
-            self.write_buffer=0 # reset buffer
+        if self.write_buffer >= self.write_buffer_size or force:
+            logger.debug("Committing.")
             self.connection.commit()
+            self.write_buffer=0 # reset buffer
 
     def optimize(self):
         '''
@@ -1403,7 +1553,6 @@ class PocketSearch:
         Inserts a new document to the search index.
         '''
         self.assure_writeable()
-        self.write_buffer = self.write_buffer + 1
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
@@ -1414,6 +1563,7 @@ class PocketSearch:
         try:
             logger.debug(sql)
             self.cursor.execute(sql, values)
+            self.write_buffer = self.write_buffer + 1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
         self.commit()
@@ -1448,9 +1598,7 @@ class PocketSearch:
         sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
         logger.debug(sql)
         self.cursor.execute(sql, values)
-        if self.write_buffer > self.write_buffer_size:
-            self.write_buffer=0
-            self.connection.commit()        
+        self.write_buffer = self.write_buffer + 1
         self.commit()
 
     def delete(self, rowid):
@@ -1462,6 +1610,7 @@ class PocketSearch:
         sql = "delete from %s where id = ?" % (self.schema.name)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
+        self.write_buffer = self.write_buffer + 1
         self.commit()
 
     def delete_all(self):
@@ -1479,6 +1628,8 @@ class PocketSearch:
         Constructs a query against a given field that performs auto-complete
         (thus, predicting what the rest of a word is a user types in).
         '''
+        if len(args)>0:
+            raise Query.QueryError(".autocomplete expects exactly one keyword argument naming the field in the schema you want to search.")
         if len(kwargs)>1:
             raise Query.QueryError("Only one field can be searched through autocomplete.")
         if len(kwargs)==0:
@@ -1504,6 +1655,11 @@ class PocketSearch:
             query_components[len(query_components)-1]=query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
         return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
+
+    def suggest(self,query):
+        if self.schema._meta.spell_check:
+            return self._get_or_create_spellchecker_instance().suggest(query)
+        raise Query.QueryError("Spell checks are not supported in this index.")
 
     def search(self, *args, **kwargs):
         '''

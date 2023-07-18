@@ -1,6 +1,7 @@
 # Defining Schemas
 
-A search index may have an arbitrary list of fields that can be searched. Schemas 
+By default PocketSearch assumes that your search instance has only one field called text (the DefaultSchema).
+However, a search index may have an arbitrary list of fields that can be searched. Schemas 
 are defined through Schema classes:
 
 ```Python
@@ -11,8 +12,12 @@ class FileContents(Schema):
 
     text = Text(index=True)
     filename = Text(is_id_field=True)
+```
 
-# create pocketsearch instance and provide schema
+If we want to use this schema, we have to provide it to the PocketSearch instance:
+
+```Python
+# create pocketsearch instance and provide schema 
 pocket_search.PocketSearch(schema=FileContents)
 pocket_search.insert(text="Hello world",filename="a.txt")
 ```
@@ -26,6 +31,7 @@ Following fields are available:
 | Text         | TEXT   |
 | Int          | INTEGER  |
 | Real         | REAL  |
+| Blob         | Blob  |
 | Numeric      | Numeric  |
 | Date         | Date  |
 | Datetime     | Datetime  |
@@ -60,6 +66,22 @@ Here is an example on how to use field definitions:
         f6 = Date()
 ```
 
+## Selecting data using custom schemas
+
+When you open a database in readonly mode that has a custom schema, you have to 
+make sure, to provide the schema when creating the object:
+
+```Python
+pocketsearch = PocketSearch(schema=Example)
+```
+
+or using PocketReaders:
+
+```Python
+with PocketReader(schema=Example) as pocket_reader:
+    pocket_reader.search(f2='some text')
+```
+
 ## Inserting data
 
 When inserting or updating data, provide the fields you want to populate as 
@@ -80,13 +102,38 @@ When using the .insert method you have to provide values for **all** fields.
 
 ## Updating data
 
-Using the **id** field of a document, you can run updates:
+When storing schemas, pocketsearch associates each document with a unique numeric 
+id. This id can be retrieved through search:
 
 ```Python
-pocket_search.update(rowid=1, text="The updated text.")
+pocket_search.search(f1=32)[0].id
+1
 ```
 
-If want to update more fields, simply provide them as keyword arguments.
+Using the **id** of a document, you can run updates on a given document:
+
+```Python
+pocket_search.update(rowid=1, f1=48)
+```
+
+If want to update more fields, simply provide them as keyword arguments:
+
+```Python
+pocket_search.update(rowid=1, f1=48, f2='updated text')
+```
+
+## Insert or update method
+
+The insert_or_update method allows you to either insert a document if it does 
+not already exist or update its existing record in the database. For this to work,
+the schema must at least define one field where the **is_id_field** option is set:
+
+```Python
+# If text.txt does not exist, a new document will be created:
+pocket_search.insert_or_update(filename="text.txt",content="A")
+# Now, the existing document will be updated with the new content:
+pocket_search.insert_or_update(filename="text.txt",content="B")
+```
 
 ## Deleting data
 
@@ -100,5 +147,23 @@ If you want to delete the entire index use:
 
 ```Python
 pocket_search.delete_all()
+```
+
+## Improving performance: Write buffers
+
+By default a commit to the database is executed after each call to .insert, .update or .delete.
+If you want to speed up database modifications, you can use the write_buffer_size option:
+
+```Python
+# Commit is done after 500 documents have been inserted:
+pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
+```
+
+Using the PocketWriter context manager:
+
+```Python
+# Commit is done after 500 documents have been inserted using a PocketWriter
+with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
+    pocket_writer.insert(text="Hello world")
 ```
 

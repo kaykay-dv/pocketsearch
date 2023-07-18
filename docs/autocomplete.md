@@ -1,7 +1,7 @@
 # Autocomplete queries
 The autocomplete feature is a convenience function that predicts the rest of an input based on the characters a user provides.
 
-Here is an example:
+Here is an example that provides autocompletion for the field 'text':
 
 ```Python
 # We provide 3 characters:
@@ -16,7 +16,7 @@ Autocomplete works as follows:
 
 Some rules apply when using the autocomplete method:
 
-* Look ups are not allowed (e.g. allow_boolean, etc.)
+* Lookups are not allowed (e.g. allow_boolean, etc.)
 * Special operators are not allowed (e.g. ^ or *)
 * You can only provide one field as keyword argument
-* .autocomplete returns Query objects, thus you can apply slicing, counting, order_by and highlighting as described above. By default 10 suggestions are made.
+* .autocomplete returns Query objects, thus you can apply slicing, counting, order_by and highlighting as described in previous chapters. By default 10 suggestions are made.
