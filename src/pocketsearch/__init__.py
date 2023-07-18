@@ -1628,6 +1628,8 @@ class PocketSearch:
         Constructs a query against a given field that performs auto-complete
         (thus, predicting what the rest of a word is a user types in).
         '''
+        if len(args)>0:
+            raise Query.QueryError(".autocomplete expects exactly one keyword argument naming the field in the schema you want to search.")
         if len(kwargs)>1:
             raise Query.QueryError("Only one field can be searched through autocomplete.")
         if len(kwargs)==0:

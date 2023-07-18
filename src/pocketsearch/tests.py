@@ -653,6 +653,13 @@ class AutocompleteTest(unittest.TestCase):
         ]:
             self.pocket_search.insert(text=elem)
 
+    def test_args_provided(self):
+        '''
+        No positional arguments are not allowed
+        '''
+        with self.assertRaises(Query.QueryError):
+            self.pocket_search.autocomplete("Ind")
+
     def test_autocomplete_multiple_keywords(self):
         '''
         Multiple keywords are not allowed
@@ -722,7 +729,7 @@ class AutocompleteTest(unittest.TestCase):
         Test if quoting, works. Special characters are not allowed 
         in autocomplete queries
         '''
-        self.assertEqual(self.pocket_search.autocomplete(1,text="*").count(),0)
+        self.assertEqual(self.pocket_search.autocomplete(text="*").count(),0)
 
 class Unicode61Tests(unittest.TestCase):
     '''

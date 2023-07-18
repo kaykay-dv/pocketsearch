@@ -38,7 +38,7 @@ We can now open the search index again and use spelling suggestions:
 ```Python
 import pocketsearch
 # now the database is written and the spellchecker is available
-with pocketsearch.PocketReader(schema=Example,db_name="my_db.db") as pocket_reader
+with pocketsearch.PocketReader(schema=Example,db_name="my_db.db") as pocket_reader:
     pocket_reader.suggest("hllo") 
 ```
 
