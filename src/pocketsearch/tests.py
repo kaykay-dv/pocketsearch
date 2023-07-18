@@ -841,8 +841,8 @@ class TokenizerTests(unittest.TestCase):
         self.SchemaDiacritics.Meta.tokenizer = Unicode61(categories="N*",separators="4")
         pocket_search = PocketSearch(schema=self.SchemaDiacritics)
         pocket_search.insert(text=under_test)
-        for item in pocket_search.tokens():
-            print(item)
+        # This results in only one token as everything else is considered a separator
+        self.assertEqual(len(list(pocket_search.tokens())),1)
 
 class CharacterTest(unittest.TestCase):
     '''
