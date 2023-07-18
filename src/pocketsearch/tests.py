@@ -14,7 +14,11 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import *
+from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
+from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date
+from pocketsearch import Unicode61
+from pocketsearch import Query, Q
+from pocketsearch import FileSystemReader
 
 logging.basicConfig(level=logging.DEBUG)  
 
