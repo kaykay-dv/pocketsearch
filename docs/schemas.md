@@ -149,45 +149,17 @@ If you want to delete the entire index use:
 pocket_search.delete_all()
 ```
 
-## Speeding up inserts: Write buffers
-
-By default a commit to the database is executed after each modification to the database. 
-If you want to speed up inserts, you can use the write_buffer_size option:
-
-```Python
-# Commit is done after 500 documents have been inserted:
-pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
-# Close the connection and write out any items left in the buffer
-pocketsearch.close()
-```
-
-Alternativley you can use the PocketWriter context manager:
-
-```Python
-# Commit is done after 500 documents have been inserted using a PocketWriter
-with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
-    pocket_writer.insert(text="Hello world")
-```
-
-The buffer applies to following operation in the database:
-
-* Inserting documents
-* Updating documents
-* Deleting documents
-
 ## Improving performance: Write buffers
 
-By default a commit to the database is executed after each modification to the database. 
-If you want to speed up inserts, you can use the write_buffer_size option:
+By default a commit to the database is executed after each call to .insert, .update or .delete.
+If you want to speed up database modifications, you can use the write_buffer_size option:
 
 ```Python
 # Commit is done after 500 documents have been inserted:
 pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
-# Close the connection and write out any items left in the buffer
-pocketsearch.close()
 ```
 
-Alternativley you can use the PocketWriter context manager:
+Using the PocketWriter context manager:
 
 ```Python
 # Commit is done after 500 documents have been inserted using a PocketWriter
@@ -195,8 +167,3 @@ with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pock
     pocket_writer.insert(text="Hello world")
 ```
 
-The buffer applies to following operation in the database:
-
-* Inserting documents
-* Updating documents
-* Deleting documents
