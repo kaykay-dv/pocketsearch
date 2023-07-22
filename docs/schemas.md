@@ -149,6 +149,49 @@ If you want to delete the entire index use:
 pocket_search.delete_all()
 ```
 
+## Using legacy tables
+
+(Added in version 0.13.0)
+
+Sometimes, we already have an existing sqlite3 table with data that we want to put into a search index. 
+Assume we have a table document defined in a database called "legacy.db":
+
+```SQL
+CREATE TABLE document (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    body TEXT,                       
+    title TEXT,
+    length float
+)
+```
+
+```Python
+We can now define a schema: 
+
+    class LegacyTableSchema(Schema):
+
+        title = Text(index=True)
+        body = Text(index=True)
+        length = Real()
+```
+
+In order to add fields "body" and "title" to a search index, we can explicitly provide the "index_name" 
+keyword argument:
+
+```Python
+with PocketWriter(index_name="document",db_name="legacy.db",schema=self.LegacyTableSchema):
+    pass
+```
+
+This will create a search index on top of the document table leaving the legacy table unchanged. Please 
+note, that when we provide an index keyword argument to any other field than a text field, it will be ignored 
+as legacy tables are never changed. 
+Internally PocketSearch will add triggers to the existing database, so whenever something is added, updated or 
+deleted, the search index will be updated too.
+
+> **_NOTE:_**  The fields defined in the schema and fields defined in the legacy table must match, otherwise 
+an exception is raised.
+
 ## Improving performance: Write buffers
 
 By default a commit to the database is executed after each call to .insert, .update or .delete.
