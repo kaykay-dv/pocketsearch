@@ -1687,13 +1687,14 @@ class PocketSearch:
         the rowid is not found, no update is done and no error is thrown.
         '''
         self.assure_writeable()
+        id_field = self.schema.get_id_field() or "id"
         docid = kwargs.pop("rowid")
         arguments = self.get_arguments(kwargs, for_search=False)
         values = [argument.lookups[0].value for argument in arguments.values()] + [docid]
         stmt = []
         for f in arguments:
             stmt.append("%s=?" % f)
-        sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
+        sql = "update %s set %s where %s=?" % (self.schema.name, ",".join(stmt),id_field)
         logger.debug(sql)
         self.cursor.execute(sql, values)
         self.write_buffer = self.write_buffer + 1
@@ -1705,7 +1706,8 @@ class PocketSearch:
         the rowid is not found, no deletion is done and no error is thrown.
         '''
         self.assure_writeable()
-        sql = "delete from %s where id = ?" % (self.schema.name)
+        id_field = self.schema.get_id_field() or "id"
+        sql = "delete from %s where %s = ?" % (self.schema.name,id_field)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
         self.write_buffer = self.write_buffer + 1

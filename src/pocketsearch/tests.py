@@ -1221,6 +1221,11 @@ class CustomIDFieldTest(unittest.TestCase):
         p.insert(text="Test")
         self.assertEqual(p.search(text="Test").count(),1)
         self.assertEqual(p.search(text="Test")[0].content_id,1)
+        p.update(rowid=1,text="Updated text")
+        self.assertEqual(p.search(text="Test").count(),0)
+        self.assertEqual(p.search(text="Updated text").count(),1)
+        p.delete(rowid=1)
+        self.assertEqual(p.search(text="Updated text").count(),0)
 
     
 
