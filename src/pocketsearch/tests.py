@@ -16,7 +16,7 @@ import datetime
 import logging
 
 from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
-from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date
+from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
 from pocketsearch import FileSystemReader
@@ -1209,6 +1209,20 @@ class SpellCheckerTest(BaseTest):
                 # test standard search
                 pocketreader.search(title="blade")[0].text
 
+class CustomIDFieldTest(unittest.TestCase):
+
+    class CustomIDSchema(Schema):
+
+        content_id = IdField()
+        text = Text(index=True)
+
+    def test_custom_id(self):
+        p = PocketSearch(schema=self.CustomIDSchema)
+        p.insert(text="Test")
+        self.assertEqual(p.search(text="Test").count(),1)
+        self.assertEqual(p.search(text="Test")[0].content_id,1)
+
+    
 
 class LegacyTableTest(unittest.TestCase):
     '''
@@ -1228,6 +1242,11 @@ class LegacyTableTest(unittest.TestCase):
         body = Text(index=True)
         length = Real()
 
+    class LegacyTableSchemaMissingField(Schema):
+        
+        title2 = Text(index=True)
+
+
     def _create_database(self,db_name):
         conn = sqlite3.connect(db_name)
         print(db_name)
@@ -1242,6 +1261,14 @@ class LegacyTableTest(unittest.TestCase):
             )
         ''')
         cursor.execute('''
+            CREATE TABLE no_id_field (
+                body TEXT,                       
+                title TEXT,
+                length float
+                
+            )
+        ''')        
+        cursor.execute('''
                 INSERT INTO document (title, body) VALUES (?, ?)
             ''', ("My title", "My content"))
         cursor.execute('''
@@ -1249,6 +1276,33 @@ class LegacyTableTest(unittest.TestCase):
             ''', ("My title2", "test"))        
         conn.commit()
         conn.close()
+
+    def test_no_id_legacy_table(self):
+        '''
+        Test exception, if a field in the 
+        schema definition but is missing in the 
+        legacy table definition
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir+os.sep+"test.db"
+            # Create table manually
+            self._create_database(db_name)
+            with self.assertRaises(PocketSearch.DatabaseError):
+                PocketSearch(index_name="no_id_field",db_name=db_name,schema=self.LegacyTableSchemaMissingField,writeable=True)
+
+    def test_unknown_field_legacy_table(self):
+        '''
+        Test exception, if a field in the 
+        schema definition but is missing in the 
+        legacy table definition
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir+os.sep+"test.db"
+            # Create table manually
+            self._create_database(db_name)
+            with self.assertRaises(PocketSearch.DatabaseError):
+                PocketSearch(index_name="document",db_name=db_name,schema=self.LegacyTableSchemaMissingField,writeable=True)
+
 
     def test_legacy_table(self):
         '''

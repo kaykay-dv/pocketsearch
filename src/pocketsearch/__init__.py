@@ -285,7 +285,7 @@ class Schema:
     A schema defines what fields can be searched in the search index.
     '''
 
-    id = IdField()
+    #id = IdField()
     rank = Rank()
 
     class Meta:
@@ -369,10 +369,29 @@ class Schema:
                 if obj.fts_enabled():
                     self.field_index[obj.name]=field_index
                     field_index+=1
+        if not(self.get_id_field()):
+            obj = IdField()
+            obj.name="id"
+            self.fields["id"] = obj
+            self.fields["id"].schema=self
+            self.reverse_lookup[obj] = "id"
 
         for field in self:
             if field.default is not None:
                 self.fields_with_default[field.name] = field
+
+    def get_id_field(self):
+        '''
+        Returns True if the current schema has explicitly 
+        defined an IdField
+        '''
+        for elem in dir(self):
+            obj = getattr(self, elem)
+            if isinstance(obj, IdField):
+                return elem
+        return None
+
+
 
     def get_field(self, field_name, raise_exception=False):
         '''
@@ -974,6 +993,7 @@ class Query:
 
     def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
+        id_field = self.search_instance.schema.get_id_field() or "id"        
         self.arguments = arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         self.unions = []
@@ -990,7 +1010,7 @@ class Query:
                         self.sql_query.where(field=argument.field,lookup=lookup , operator = q_expr.operator)
         self.sql_query.table(table_name=self.search_instance.schema.name)
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name)
-        self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], "id", "rowid")
+        self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], id_field, "rowid")
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
         self._default_order_by_set = True
@@ -1453,6 +1473,7 @@ class PocketSearch:
         fields = []
         index_fields = []
         default_index_fields = []  # non-FTS index fields
+        id_field = self.schema.get_id_field() or "id"
         for field in self.schema:
             if (not(field.hidden)):
                 if field.index and field.fts_enabled():
@@ -1479,8 +1500,8 @@ class PocketSearch:
         sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
-            content='{content}', content_rowid='id' {additional_options} {prefix_index});
-        '''
+            content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
+        ''' 
         # aux tables
         sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
@@ -1488,16 +1509,16 @@ class PocketSearch:
         new_cols = ", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
         sql_trigger_insert = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
         END;'''
         sql_trigger_delete = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ad AFTER DELETE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.id, {old_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.{id_field}, {old_cols});
         END;'''
         sql_trigger_update = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_au AFTER UPDATE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.id, {old_cols});
-        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.{id_field}, {old_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
         END;
         '''
         self.cursor.execute(sql_table)
@@ -1543,6 +1564,7 @@ class PocketSearch:
         a dictionary of argument objects.
         '''
         referenced_fields = {}
+        id_field = self.schema.get_id_field() or "id"
         for kwarg in kwargs:
             comp = kwarg.split("__")
             if comp[0] not in referenced_fields:
@@ -1562,7 +1584,7 @@ class PocketSearch:
                         raise self.FieldError("Unknown lookup: '%s' in field '%s'" % (name, f))
         arguments = {}
         for field in self.schema:
-            if field.name not in referenced_fields and not(for_search) and field.name not in ["id", "rank"]:
+            if field.name not in referenced_fields and not(for_search) and field.name not in [id_field, "rank"]:
                 raise self.FieldError("Missing field '%s' in keyword arguments." % field.name)
             if field.name in referenced_fields:
                 arguments[field.name] = self.Argument(field, referenced_fields[field.name])
