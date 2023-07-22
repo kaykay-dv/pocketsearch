@@ -1425,6 +1425,22 @@ class PocketSearch:
             mgmt_type = (True,managed["content"])
         return table_exists , mgmt_type
 
+    def _check_fields(self):
+        self.cursor.execute("PRAGMA table_info(%s)" % self.index_name)
+        table_info = self.cursor.fetchall()
+        fields = {}
+        for column in table_info:
+            fields[column[1]]=column[2]
+        # check schema
+        for field , definition in self.schema.fields.items():
+            if field != "rank":
+                if field not in fields:
+                    raise self.DatabaseError(f"'{field}' is present in the schema but has not been defined in the legacy table.")
+                if definition.data_type != fields[field]:
+                    legacy_definition = fields[field]
+                    raise self.DatabaseError(f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
+        return True
+
     def _create_table(self, index_name):
         '''
         Private method to create the SQL tables used by the index.
@@ -1453,6 +1469,7 @@ class PocketSearch:
         if table_exists:
             # This is a table that has been created outside of pocketsearch.
             # We will create a contentless fts5 virtual table:
+            self._check_fields()
             managed, content = mgmt_type
         sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
