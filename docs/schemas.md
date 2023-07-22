@@ -66,6 +66,20 @@ Here is an example on how to use field definitions:
         f6 = Date()
 ```
 
+If you want to explicitly define an "id" field or use another name you can do so by adding it to the schema:
+
+```Python
+    class Example(Schema):
+
+        record_id = IdField()
+        f1 = Int(index=True) 
+        f2 = Text(index=True)
+        f3 = Blob()
+        f4 = Real()
+        f5 = Datetime()
+        f6 = Date()
+```
+
 ## Selecting data using custom schemas
 
 When you open a database in readonly mode that has a custom schema, you have to 
@@ -103,10 +117,14 @@ When using the .insert method you have to provide values for **all** fields.
 ## Updating data
 
 When storing schemas, pocketsearch associates each document with a unique numeric 
-id. This id can be retrieved through search:
+**id** field. (unless you have renamed it to something else ). This id can be retrieved through search:
 
 ```Python
+# Assuming default id field:
 pocket_search.search(f1=32)[0].id
+1
+# Assuming you have renamed it as illustrated in the example above:
+pocket_search.search(f1=32)[0].record_id
 1
 ```
 
