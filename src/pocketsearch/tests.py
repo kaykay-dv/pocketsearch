@@ -1210,13 +1210,22 @@ class SpellCheckerTest(BaseTest):
                 pocketreader.search(title="blade")[0].text
 
 class CustomIDFieldTest(unittest.TestCase):
+    '''
+    Tests for custom ID fields
+    '''
 
     class CustomIDSchema(Schema):
+        '''
+        Simple schema that uses its own id field
+        '''
 
         content_id = IdField()
         text = Text(index=True)
 
     def test_custom_id(self):
+        '''
+        Test if inserts, updates and deletes work with custom ids
+        '''
         p = PocketSearch(schema=self.CustomIDSchema)
         p.insert(text="Test")
         self.assertEqual(p.search(text="Test").count(),1)
