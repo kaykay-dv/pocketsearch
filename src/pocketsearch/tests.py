@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import sys
+import sqlite3
 import os.path
 import unittest
 import tempfile
@@ -189,6 +190,7 @@ class TokenInfoTest(BaseTest):
         tokens = list(self.pocket_search.tokens())
         self.assertEqual(len(tokens),16)
         self.pocket_search.delete(rowid=rowid)
+        self.assertEqual(self.pocket_search.search(text="fox").count(),0)
         # Number of tokens should now be reduced:
         tokens = list(self.pocket_search.tokens())
         self.assertEqual(len(tokens),9)
@@ -600,6 +602,8 @@ class IndexUpdateTests(BaseTest):
         '''
         self.pocket_search.delete_all()
         self.assertEqual(self.pocket_search.search().count(), 0)
+        # try to apply the delete again:
+        self.pocket_search.delete_all()
 
     def test_update_entry(self):
         '''
@@ -1204,6 +1208,72 @@ class SpellCheckerTest(BaseTest):
                 self.assertEqual(len(pocketreader.suggest("h")),0)
                 # test standard search
                 pocketreader.search(title="blade")[0].text
+
+
+class LegacyTableTest(unittest.TestCase):
+    '''
+    Tests for creating indices on an already existing table
+    '''
+
+    class LegacyTableSchema(Schema):
+        '''
+        Schema for the search index. Must correspond to 
+        the definition of the legacy table
+        '''
+
+        class Meta:
+            spell_check = True
+
+        title = Text(index=True)
+        body = Text(index=True)
+
+    def _create_database(self,db_name):
+        conn = sqlite3.connect(db_name)
+        print(db_name)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE document (
+                body TEXT,                       
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT
+                
+            )
+        ''')
+        cursor.execute('''
+                INSERT INTO document (title, body) VALUES (?, ?)
+            ''', ("My title", "My content"))
+        cursor.execute('''
+                INSERT INTO document (title, body) VALUES (?, ?)
+            ''', ("My title2", "test"))        
+        conn.commit()
+        conn.close()
+
+    def test_legacy_table(self):
+        '''
+        Creates table in a legacy.db, we then try to create 
+        a full text search index around this table.
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir+os.sep+"test.db"
+            # Create table manually
+            self._create_database(db_name)
+            with PocketWriter(index_name="document",db_name=db_name,schema=self.LegacyTableSchema):
+                pass
+                #writer._populate_fts()
+                #writer.insert(body="a",title="b")
+            with PocketReader(index_name="document",db_name=db_name,schema=self.LegacyTableSchema) as reader:
+                record = reader.search(body="test")[0]
+                self.assertEqual(record.id,2)
+                record = reader.search(body="My content")[0]
+                self.assertEqual(record.id,1)          
+                # Test spell checking:   
+                results = reader.suggest("cntent")
+                self.assertEqual(results["cntent"][0][0],"content")
+            with PocketWriter(index_name="document",db_name=db_name,schema=self.LegacyTableSchema) as writer:
+                # Now try inserting data the regular way:
+                writer.insert(body="a",title="b")
+                self.assertEqual(writer.search(title="my title").count(),1)
+                self.assertEqual(writer.search(title="b").count(),1)
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import sqlite3
+import collections
 import unicodedata
 import os
 import time
@@ -334,7 +335,7 @@ class Schema:
         self._meta = self.Meta()
         self._set_meta_defaults()
         self.name = name
-        self.fields = {}
+        self.fields = collections.OrderedDict()
         self.field_index = {} # required by some SQL functions, e.g. highlight
         self.fields_with_default = {}
         self.reverse_lookup = {}
@@ -1155,8 +1156,9 @@ class PocketReader(PocketContextManager):
     '''
 
     def __init__(self,db_name=None,
+                      index_name="documents",
                       schema=DefaultSchema):
-        self.pocketsearch = PocketSearch(db_name=db_name,schema=schema)
+        self.pocketsearch = PocketSearch(index_name=index_name,db_name=db_name,schema=schema)
 
 class PocketWriter(PocketContextManager):
     '''
@@ -1165,9 +1167,11 @@ class PocketWriter(PocketContextManager):
     '''    
 
     def __init__(self,db_name=None,
+                 index_name="documents",
                  schema=DefaultSchema,
                  write_buffer_size=1):
         self.pocketsearch = PocketSearch(
+            index_name=index_name,
             db_name=db_name,
             schema=schema,
             writeable=True,
@@ -1367,6 +1371,18 @@ class PocketSearch:
         logger.debug("sql=%s,args=%s" % (sql,args))
         return self.cursor.execute(sql, args)
 
+    def _populate_fts(self):
+        '''
+        Manually populates the FTS5 virtual table with content found in 
+        the index_name table.
+        '''
+        for row in self.cursor.execute('select * from %s' % self.index_name):
+            params={}
+            for col in row.keys():
+                if col != "id":
+                    params[col]=row[col]
+            self.insert("%s_fts" % self.index_name,**params)
+
     def _format_sql(self, index_name, fields, sql):
         '''
         Helper method to create triggers for the virtual FTS5 table.
@@ -1398,6 +1414,17 @@ class PocketSearch:
             return ", prefix='{prefix_index}'".format(prefix_index=" ".join(str(item) for item in prefix_index))
         return ""
 
+    def _table_exists(self):
+        self.cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (self.index_name,))
+        table_exists = self.cursor.fetchone()[0] > 0
+        self.cursor.execute("SELECT * from pocket_search_master where name = ?",(self.index_name,))
+        managed = self.cursor.fetchone()
+        if managed is None:
+            mgmt_type = (False,"")
+        else:
+            mgmt_type = (True,managed["content"])
+        return table_exists , mgmt_type
+
     def _create_table(self, index_name):
         '''
         Private method to create the SQL tables used by the index.
@@ -1418,39 +1445,62 @@ class PocketSearch:
         fts_fields = ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
         additional_options = self._create_additional_options()
         prefix_index = self._create_prefix_index()
+        # Create meta table holding all pocketsearch created search index names:
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS pocket_search_master (name TEXT unique, content TEXT)")
+        # Check if the table is already there and if it is under management of pocketsearch:
+        table_exists, mgmt_type = self._table_exists()
+        content = self.index_name
+        if table_exists:
+            # This is a table that has been created outside of pocketsearch.
+            # We will create a contentless fts5 virtual table:
+            managed, content = mgmt_type
         sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
-            content='{index_name}', content_rowid='id' {additional_options} {prefix_index});
+            content='{content}', content_rowid='id' {additional_options} {prefix_index});
         '''
         # aux tables
         sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
-        sql_trigger_insert = '''
+        old_cols = ", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        new_cols = ", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        sql_trigger_insert = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.id, {new_cols});
         END;'''
-        sql_trigger_delete = '''
+        sql_trigger_delete = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ad AFTER DELETE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.id, {old_cols});
         END;'''
-        sql_trigger_update = '''
+        sql_trigger_update = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_au AFTER UPDATE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
-        INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.id, {old_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.id, {new_cols});
         END;
         '''
         self.cursor.execute(sql_table)
         self.cursor.execute(sql_aux_table)
         logger.debug(sql_table)
         logger.debug(sql_virtual_table)
+        logger.debug(sql_trigger_insert)
+        logger.debug(sql_trigger_delete)
+        logger.debug(sql_trigger_update)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
-        # create standard indices
-        for field in default_index_fields:
-            self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+        if table_exists:
+            if not(managed):
+                # Index existing data, this will be executed only once
+                sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {fts_fields} FROM {index_name}"
+                logger.debug(sql_index_data)
+                self.cursor.execute(sql_index_data)
+                self.cursor.execute("insert into pocket_search_master values (?,?)",(index_name,content))
+        else:
+            # create standard indices
+            self.cursor.execute("insert into pocket_search_master values (?,?)",(index_name,content))
+            for field in default_index_fields:
+                self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
 
     def tokens(self):
         '''
@@ -1553,11 +1603,15 @@ class PocketSearch:
         Inserts a new document to the search index.
         '''
         self.assure_writeable()
+        if len(args)>0:
+            table_name = args[0]
+        else:
+            table_name = self.schema.name
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
         placeholder_values = "?" * len(values)
-        sql = "insert into %s (%s) values (%s)" % (self.schema.name,
+        sql = "insert into %s (%s) values (%s)" % (table_name,
                                                    joined_fields,
                                                    ",".join(placeholder_values))
         try:
