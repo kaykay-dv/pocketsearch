@@ -1226,6 +1226,7 @@ class LegacyTableTest(unittest.TestCase):
 
         title = Text(index=True)
         body = Text(index=True)
+        length = Real()
 
     def _create_database(self,db_name):
         conn = sqlite3.connect(db_name)
@@ -1235,7 +1236,8 @@ class LegacyTableTest(unittest.TestCase):
             CREATE TABLE document (
                 body TEXT,                       
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT
+                title TEXT,
+                length float
                 
             )
         ''')
@@ -1271,7 +1273,7 @@ class LegacyTableTest(unittest.TestCase):
                 self.assertEqual(results["cntent"][0][0],"content")
             with PocketWriter(index_name="document",db_name=db_name,schema=self.LegacyTableSchema) as writer:
                 # Now try inserting data the regular way:
-                writer.insert(body="a",title="b")
+                writer.insert(body="a",title="b",length=1)
                 self.assertEqual(writer.search(title="my title").count(),1)
                 self.assertEqual(writer.search(title="b").count(),1)
 

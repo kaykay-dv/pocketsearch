@@ -1429,8 +1429,13 @@ class PocketSearch:
         self.cursor.execute("PRAGMA table_info(%s)" % self.index_name)
         table_info = self.cursor.fetchall()
         fields = {}
+        mappings = {
+            "INT" : "INTEGER",
+            "FLOAT" : "REAL"
+        }
         for column in table_info:
-            fields[column[1]]=column[2]
+            data_type = mappings.get(column[2].upper(),column[2])
+            fields[column[1]]=data_type
         # check schema
         for field , definition in self.schema.fields.items():
             if field != "rank":
