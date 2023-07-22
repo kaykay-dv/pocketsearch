@@ -211,10 +211,11 @@ This will create a search index on top of the document table leaving the legacy 
 note, that when we provide an index keyword argument to any other field than a text field, it will be ignored 
 as legacy tables are never changed. 
 Internally PocketSearch will add triggers to the existing database, so whenever something is added, updated or 
-deleted, the search index will be updated too.
+deleted, the search index will be updated too. The fields defined in the schema and fields defined in the legacy table must match, 
+otherwise an exception is raised.
 
-> **_NOTE:_**  The fields defined in the schema and fields defined in the legacy table must match, otherwise 
-an exception is raised.
+> **_NOTE:_** The PocketWriter class will automatically populate the search index with all documents found in the legacy table, 
+so the first execution may take some time depending on the size of the table. 
 
 ## Improving performance: Write buffers
 
