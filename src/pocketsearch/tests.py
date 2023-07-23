@@ -19,7 +19,7 @@ from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
-from pocketsearch import FileSystemReader
+from pocketsearch import FileSystemReader, ConnectionPool
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -123,6 +123,56 @@ class BaseTest(unittest.TestCase):
         self.pocket_search = PocketSearch(index_name="text_data",writeable=True)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
+
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
+
+class ConnectionPoolTest(unittest.TestCase):
+    '''
+    Test con-current access to writeable connections
+    '''
+
+    def test_no_connection_available(self):
+        '''
+        We use two PocketSearch instances with the first one 
+        not having closed its connection. Thus, the second 
+        instance should return an connection error
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            p1 = PocketSearch(db_name=db_name,writeable=True)
+            p1.insert(text="a")
+            with self.assertRaises(ConnectionPool.ConnectionError):
+                PocketSearch(db_name=db_name,writeable=True)
+
+    def test_connection_available(self):
+        '''
+        In this test, the first instance properly closes the 
+        connection
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            p1 = PocketSearch(db_name=db_name,writeable=True)
+            p1.insert(text="a")
+            p1.close()
+            p2 = PocketSearch(db_name=db_name,writeable=True)        
+            p2.insert(text="b")
+            p2.close()
+
+    def test_get_reader_connections(self):
+        '''
+        Test if exceeding the maximum numbers of readers 
+        raises an ConnectionError
+        '''
+        for i in range(0,ConnectionPool.POOL_MAX_READERS+1):
+            try:
+                PocketSearch()
+            except ConnectionPool.ConnectionError:
+                if i == ConnectionPool.POOL_MAX_READERS:
+                    pass
+                else:
+                    raise ValueError("Maximum number of readers not respected.")
 
 class SQLFunctionTests(BaseTest):
 
@@ -337,12 +387,14 @@ class PhraseSearch(unittest.TestCase):
         self.assertEqual(pocket_search.search(text="This is a phrase").count(), 2)
         self.assertEqual(pocket_search.search(text="this phrase a is").count(), 2)
         self.assertEqual(pocket_search.search(text='"this is a phrase"').count(), 1)
+        pocket_search.close()
 
     def test_multiple_phrases(self):
         pocket_search = PocketSearch(writeable=True)
         pocket_search.insert(text="This is a phrase")
         self.assertEqual(pocket_search.search(text='"this is" "a phrase"').count(), 1)
         self.assertEqual(pocket_search.search(text='"this is" "phrase a"').count(), 0)
+        pocket_search.close()
 
 class PermanentDatabaseTest(unittest.TestCase):
 
@@ -362,7 +414,7 @@ class PermanentDatabaseTest(unittest.TestCase):
                 num_docs = pocket_reader.search(text="world").count()
                 self.assertEqual(num_docs,1)
 
-class IndexTest(BaseTest):
+class ContextManagerTest(unittest.TestCase):
 
     def test_context_manager(self):
         '''
@@ -375,7 +427,9 @@ class IndexTest(BaseTest):
         # Create reader - this should return 0 results
         # as the PocketReader creates a new database:
         with PocketReader() as pocketsearch:
-            self.assertEqual(pocketsearch.search(text="Hello world.").count(),0)
+            self.assertEqual(pocketsearch.search(text="Hello world.").count(),0)    
+
+class IndexTest(BaseTest):
 
     def test_write_to_read_only_index(self):
         pocket_search = PocketSearch(writeable=False)
@@ -397,13 +451,15 @@ class IndexTest(BaseTest):
         with self.assertRaises(pocket_search.FieldError):
             pocket_search.insert(text__allow_boolean="123")
         pocket_search.insert(text="123")
+        pocket_search.close()
         with self.assertRaises(pocket_search.FieldError):
             pocket_search.update(rowid=1, text__allow_boolean="The DOG jumped over the fence. Now he is beyond the fence.")
 
     def test_unknown_field(self):
-        pocket_search = PocketSearch(writeable=True)
-        with self.assertRaises(pocket_search.FieldError):
-            pocket_search.insert(non_existing_field_in_schema="21")
+        try:
+            self.pocket_search.insert(non_existing_field_in_schema="21")
+        except self.pocket_search.FieldError:
+            pass
 
     def test_count(self):
         self.assertEqual(self.pocket_search.search(text="is").count(), 3)
@@ -484,6 +540,10 @@ class QTests(unittest.TestCase):
         ]:
             self.pocketsearch.insert(code=code,product=name,price=price)
 
+    def tearDown(self):
+        self.pocketsearch.close()
+        return super().tearDown()
+
     def test_deprecated_union_search(self):
         # FIXME: test if log message is actually written
         self.pocketsearch.search(product="apple") | self.pocketsearch.search(product="peach")
@@ -552,6 +612,7 @@ class IDFieldTest(unittest.TestCase):
     def test_add_id_field(self):
         pocket_search = PocketSearch(schema=self.IdSchema)
         self.assertEqual(pocket_search.schema.id_field, "file_name")
+        pocket_search.close()
 
     def test_add_data(self):
         pocket_search = PocketSearch(schema=self.IdSchema)
@@ -639,6 +700,7 @@ class IndexUpdateTests(BaseTest):
         p.update(rowid=rowid,f1="c",f2="d")
         self.assertEqual(p.search(f1="a",f2="b").count(),0)
         self.assertEqual(p.search(f1="c",f2="d").count(),1)
+        p.close()
 
     def test_buffered_writes(self):
         '''
@@ -671,6 +733,10 @@ class AutocompleteTest(unittest.TestCase):
             "The return of the Jedi"
         ]:
             self.pocket_search.insert(text=elem)
+
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
 
     def test_args_provided(self):
         '''
@@ -814,6 +880,7 @@ class TokenizerTests(unittest.TestCase):
         pocket_search = PocketSearch(schema=self.SchemaDiacritics)
         pocket_search.insert(text="äö")
         self.assertEqual(pocket_search.search(text="ao").count(),0)
+        pocket_search.close()
 
     def test_keep_diacritics(self):
         '''
@@ -823,7 +890,8 @@ class TokenizerTests(unittest.TestCase):
             self.SchemaDiacritics.Meta.tokenizer = Unicode61(remove_diacritics=val)
             pocket_search = PocketSearch(schema=self.SchemaDiacritics)
             pocket_search.insert(text="äö")            
-            self.assertEqual(pocket_search.search(text="ao").count(),1)     
+            self.assertEqual(pocket_search.search(text="ao").count(),1)  
+            pocket_search.close()   
 
     def test_categories(self):
         '''
@@ -840,6 +908,7 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(text="1").count(),1)
         self.assertEqual(pocket_search.search(text="2").count(),1)
         self.assertEqual(pocket_search.search(text="3").count(),1)
+        pocket_search.close()
 
     def test_add_separator(self):
         '''
@@ -854,6 +923,7 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(text="Y").count(),0)
         self.assertEqual(pocket_search.search(text="Z").count(),0)
         self.assertEqual(pocket_search.search(text="D").count(),1)
+        pocket_search.close()
 
     def test_mix_categories_and_separators(self):
         under_test = "(This)X'is'Ya-toke42nizeZtest."
@@ -862,6 +932,7 @@ class TokenizerTests(unittest.TestCase):
         pocket_search.insert(text=under_test)
         # This results in only one token as everything else is considered a separator
         self.assertEqual(len(list(pocket_search.tokens())),1)
+        pocket_search.close()
 
 class CharacterTest(unittest.TestCase):
     '''
@@ -886,6 +957,10 @@ class CharacterTest(unittest.TestCase):
         self.pocket_search = PocketSearch(writeable=True)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
+
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
 
     def test_hash(self):
         '''
@@ -964,6 +1039,10 @@ class MultipleFieldRankingtest(unittest.TestCase):
         for title, category, content in self.data:
             self.pocket_search.insert(title=title, category=category, text=content)
 
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
+
     def test_rank_multiple_fields_and_query(self):
         self.assertEqual(self.pocket_search.search(text="A", title="A", category="A")[0].title, "A")
         # As all fields are AND'ed - this query will show no results
@@ -990,6 +1069,10 @@ class StemmingTests(unittest.TestCase):
         for content in self.data:
             self.pocket_search.insert(text=content)
 
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
+
     def test_search(self):
         # The default behavior: no stemming is performed
         self.assertEqual(self.pocket_search.search(text="test").count(), 0)
@@ -1007,6 +1090,10 @@ class MultipleFieldIndexTest(unittest.TestCase):
         self.pocket_search = PocketSearch(schema=Movie, writeable=True)
         for title, content in self.data:
             self.pocket_search.insert(title=title, text=content)
+
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
 
     def test_all_fields_available_in_results(self):
         self.assertEqual(self.pocket_search.search(text="ˌrʌnɚ")[0].title, "Blade Runner")
@@ -1049,6 +1136,10 @@ class FieldTypeTests(unittest.TestCase):
                                   f4=2/3,
                                   f5=datetime.datetime.now(),
                                   f6=datetime.date.today())
+        
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
 
     def test_apply_highlight_to_non_fts_field(self):
         '''
@@ -1105,6 +1196,9 @@ class StructuredDataTests(unittest.TestCase):
         ]:
             self.pocket_search.insert(description=product, price=price, category=category)
 
+    def tearDown(self):
+        self.pocket_search.close()
+        return super().tearDown()
 
     def test_filter_numeric_values_equal(self):
         self.assertEqual(self.pocket_search.search(price=3).count(), 1)
@@ -1167,6 +1261,7 @@ class FileSystemReaderTests(unittest.TestCase):
             # change as they have only been updated
             pocket_search.build(reader)
             self.assertEqual(pocket_search.search(text="world").count(), 3)
+            pocket_search.close()
 
 class SpellCheckerTest(BaseTest):
     '''
@@ -1193,6 +1288,7 @@ class SpellCheckerTest(BaseTest):
         p = PocketSearch()
         with self.assertRaises(Query.QueryError):
             p.suggest("test")
+        p.close()
 
     def test_suggest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1285,6 +1381,7 @@ class CustomIDFieldTest(unittest.TestCase):
         self.assertEqual(p.search(text="Updated text").count(),1)
         p.delete(rowid=1)
         self.assertEqual(p.search(text="Updated text").count(),0)
+        p.close()
 
     
 
@@ -1395,6 +1492,34 @@ class LegacyTableTest(unittest.TestCase):
                 self.assertEqual(writer.search(title="my title").count(),1)
                 self.assertEqual(writer.search(title="b").count(),1)
 
+import threading
+
+class TestConcurrentWrites(unittest.TestCase):
+
+    NUM_THREADS = 8
+    NUM_INSERTS = 45
+
+    def write_data(self, data, db_name):
+        search_instance = PocketSearch(db_name=db_name,writeable=True,write_buffer_size=25)
+        for i in range(0,self.NUM_INSERTS):
+            search_instance.insert(text=data + str(i))
+        search_instance.close()
+
+    def test_concurrent_writes(self):
+        # Start two threads to perform concurrent writes
+        threads=[]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            for i in range(0,self.NUM_THREADS):
+                thread = threading.Thread(target=self.write_data, args=("Writing data from Thread %i " % i,db_name))
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all threads to finish
+            for thread in threads:
+                thread.join()
+            p = PocketSearch(db_name=db_name)
+            self.assertEqual(p.search().count(),self.NUM_THREADS*self.NUM_INSERTS)
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,7 +2,8 @@
 
 ## Version 0.13.0
 * Fixed a bug in trigger definitions
-* Added possibility to use "legacy" (tables already defined in a sqlite3 database) table (https://github.com/kaykay-dv/pocketsearch/issues/42)
+* Added possibility to use "legacy" (tables already defined in a sqlite3 database) tables (https://github.com/kaykay-dv/pocketsearch/issues/42)
+* Added proper handling for empty string queries (https://github.com/kaykay-dv/pocketsearch/issues/43)
 * Added possiblity to define own "id" fields (https://github.com/kaykay-dv/pocketsearch/issues/42)
 
 ## Version 0.12.0
