@@ -436,6 +436,7 @@ class IndexTest(BaseTest):
         pocket_search.writeable = False  # in.memory dbs are writeable by default so we set the flag manually
         with self.assertRaises(pocket_search.IndexError):
             pocket_search.insert(text="21")
+        pocket_search.close()
 
     def test_optimize_within_tranascation(self):
         pocket_search = PocketSearch()
@@ -444,16 +445,17 @@ class IndexTest(BaseTest):
         #with self.assertRaises(Exception):
         # this should not work, as vacuum is not allowed at this stage
         pocket_search.optimize()
-
+        pocket_search.close()
 
     def test_use_insert_update_with_lookups(self):
         pocket_search = PocketSearch()
         with self.assertRaises(pocket_search.FieldError):
             pocket_search.insert(text__allow_boolean="123")
         pocket_search.insert(text="123")
-        pocket_search.close()
         with self.assertRaises(pocket_search.FieldError):
             pocket_search.update(rowid=1, text__allow_boolean="The DOG jumped over the fence. Now he is beyond the fence.")
+        pocket_search.close()
+
 
     def test_unknown_field(self):
         try:
@@ -515,6 +517,7 @@ class IndexTest(BaseTest):
         self.assertEqual(r[1].text, self.data[2])
         self.assertEqual(r[2].text, self.data[1])
 
+        
 class QTests(unittest.TestCase):
     '''
     Tests the behavior of the Q operator

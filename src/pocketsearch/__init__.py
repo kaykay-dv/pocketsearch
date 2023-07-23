@@ -14,6 +14,7 @@ import os
 import time
 import abc
 import copy
+import uuid
 import logging
 
 logger = logging.getLogger(__name__)
@@ -1332,6 +1333,7 @@ class PocketSearch:
         self.write_buffer=0 # keep a record of writes performed by insert statement
         self.write_buffer_size=write_buffer_size
         self.index_name = index_name
+        self._pool_handle = uuid.uuid4()
         if connection is None:
             self.connection = self._open()
         else:
@@ -1351,7 +1353,7 @@ class PocketSearch:
 
     def _get_db_id(self):
         if self.db_name is None:
-            db_name = "::%s" % id(self)
+            db_name = "::%s" % self._pool_handle
         else:
             db_name = self.db_name
         return db_name
@@ -1861,7 +1863,7 @@ class ConnectionPool:
 
     def __init__(self):
         self.connections = {}
-        self.dict_lock = threading.Lock()
+        self.dict_lock = threading.Semaphore(10)
 
     def _open(self,db_name,writeable):
         if db_name is None or db_name.startswith("::"):
@@ -1877,6 +1879,8 @@ class ConnectionPool:
         '''
         Acquire a new connection and raise an exception if none is available
         '''
+        print(len(self.connections))       
+        logger.debug("Acquiring dict lock.") 
         with self.dict_lock:
             if not db_name in self.connections:
                 logger.debug(f"Setting up pool for {db_name}")
@@ -1884,9 +1888,11 @@ class ConnectionPool:
                 self.connections[db_name]["readers"] = threading.Semaphore(self.POOL_MAX_READERS)
                 self.connections[db_name]["writer"] = threading.Semaphore(self.POOL_MAX_WRITERS)
         if writeable:
+            logger.debug("Acquiring writer.") 
             if not(self.connections[db_name]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
                 raise self.ConnectionError("Unable to acquire pocketsearch writer (Timed out)")
         else:
+            logger.debug("Acquiring reader.") 
             if not(self.connections[db_name]["readers"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
                 raise self.ConnectionError("Unable to acquire pocketsearch reader (Timed out)")              
         return self._open(db_name,writeable)
