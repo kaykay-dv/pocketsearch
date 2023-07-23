@@ -211,6 +211,14 @@ class OperatorSearch(BaseTest):
         # test application of len function to search result
         self.assertEqual(len(self.pocket_search.search(text="france")[0:1]), 1)
 
+    def test_search_empty(self):
+        # by definition, an empty search returns all objects
+        self.assertEqual(self.pocket_search.search(text="").count(), 0)
+
+    def test_search_none(self):
+        # by definition, an empty search returns all objects
+        self.assertEqual(self.pocket_search.search(text=None).count(), 0)
+
     def test_search_prefix(self):
         # by default, prefix search is not supported:
         self.assertEqual(self.pocket_search.search(text="fran*").count(), 0)
@@ -480,6 +488,13 @@ class QTests(unittest.TestCase):
         # FIXME: test if log message is actually written
         self.pocketsearch.search(product="apple") | self.pocketsearch.search(product="peach")
 
+    def test_or_empty(self):
+        q = self.pocketsearch.search(Q(product=''))
+        self.assertEqual(q.count(),0)
+
+    def test_or_none(self):
+        q = self.pocketsearch.search(Q(product=None))
+        self.assertEqual(q.count(),0)
 
     def test_or_same_keyword(self):
         q = self.pocketsearch.search(Q(product='apple') | Q(product='Peach'))
@@ -1208,6 +1223,41 @@ class SpellCheckerTest(BaseTest):
                 self.assertEqual(len(pocketreader.suggest("h")),0)
                 # test standard search
                 pocketreader.search(title="blade")[0].text
+
+class SchemaUpdateTests(unittest.TestCase):
+    '''
+    Tests for updating a schema
+    '''
+
+    class Article(Schema):
+        '''
+        Base schema
+        '''
+        body=Text(index=True)
+
+    class NewArticle(Schema):
+        '''
+        One field added
+        '''
+        title=Text(index=True)
+        body=Text(index=True)
+
+    def test_change_schema(self):
+        '''
+        Test schema migration
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=db_name,schema=self.Article) as writer:
+                writer.insert(body="A")
+                writer.insert(body="B")
+            with PocketReader(db_name=db_name,schema=self.Article) as reader:
+                with PocketWriter(db_name=db_name,index_name="document_v2",schema=self.NewArticle) as writer:
+                    for article in reader.search():
+                        writer.insert(title='some default',body=article.body)
+            with PocketReader(index_name="document_v2",db_name=db_name,schema=self.NewArticle) as reader:
+                self.assertEqual(reader.search(title="some default").count(),2)
+        
 
 class CustomIDFieldTest(unittest.TestCase):
     '''

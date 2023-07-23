@@ -227,6 +227,33 @@ If you want to speed up database modifications, you can use the write_buffer_siz
 pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
 ```
 
+## Schema migrations
+
+PocketSearch does not provide means to update an existing schema, thus adding or removing fields. 
+If you want to change the definition of a schema, it is suggested to create a new schema class, add the fields and copy the 
+contents from the old schema to the new schema:
+
+```Python
+class Article(Schema):
+    body=Text(index=True)
+```
+
+Assuming you have already inserted data, you could now change your schema by adding a field:
+
+```Python
+class Article(Schema):
+    title=Text(index=True)
+    body=Text(index=True)
+```
+
+```Python
+with PocketReader(index_name="document",db_name="legacy.db",schema=self.Article) as reader:
+    with PocketWriter(index_name="document_v2",db_name="legacy.db",schema=self.Article) as writer:
+        for article in reader.search():
+            writer.insert(title='some default',body=article.body)
+
+
+
 Using the PocketWriter context manager:
 
 ```Python

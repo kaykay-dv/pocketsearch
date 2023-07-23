@@ -177,13 +177,7 @@ class Field(abc.ABC):
         '''
         Return the full qualified name including its table for the given field.
         '''
-        if self.index:
-            if self.fts_enabled():
-                return "%s_fts.%s" % (self.schema.name, self.name)
-            else:
-                return "%s.%s" % (self.schema.name, self.name)
-        else:
-            return "%s.%s" % (self.schema.name, self.name)
+        return "%s.%s" % (self.schema.name, self.name)
 
     def to_sql(self, index_table=False):
         '''
@@ -1454,7 +1448,10 @@ class PocketSearch:
             "FLOAT" : "REAL"
         }
         for column in table_info:
-            data_type = mappings.get(column[2].upper(),column[2])
+            if column[2].upper().startswith("VARCHAR"):
+                data_type = "TEXT"
+            else:
+                data_type = mappings.get(column[2].upper(),column[2])
             fields[column[1]]=data_type
         # check schema
         for field , definition in self.schema.fields.items():
@@ -1761,17 +1758,34 @@ class PocketSearch:
             return self._get_or_create_spellchecker_instance().suggest(query)
         raise Query.QueryError("Spell checks are not supported in this index.")
 
+    def _clear_kwargs(self,kwargs):
+        cleared_kwargs = {}
+        for k, v in kwargs.items():
+            if isinstance(v,str):
+                if len(v)>0:
+                    cleared_kwargs[k]=v
+                else:
+                    cleared_kwargs[k]='""'
+            else:
+                if v is not None:
+                    cleared_kwargs[k]=v
+                else:
+                    cleared_kwargs[k]='""'
+        return cleared_kwargs
+
     def search(self, *args, **kwargs):
         '''
         Searches the index. Keyword arguments must correspond to
         '''
         if len(args)>0 and len(kwargs)>0:
             raise Query.QueryError("Cannot mix Q objects and keyword arguments.")
+        # check for empty kwargs
+        cleared_kwargs = self._clear_kwargs(kwargs)
         if len(args)>0:
             for q_expr in args[0]:
-                q_expr.arguments = self.get_arguments(q_expr.kwargs)
+                q_expr.arguments = self.get_arguments(self._clear_kwargs(q_expr.kwargs))
             return Query(search_instance=self,arguments=[],q_arguments=args[0])
-        arguments = self.get_arguments(kwargs)
+        arguments = self.get_arguments(cleared_kwargs)
         return Query(search_instance=self, arguments=arguments,q_arguments=[])
 
 
