@@ -7,6 +7,7 @@ WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WI
 THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
+import threading
 import sqlite3
 import collections
 import unicodedata
@@ -1333,7 +1334,6 @@ class PocketSearch:
         self.write_buffer=0 # keep a record of writes performed by insert statement
         self.write_buffer_size=write_buffer_size
         self.index_name = index_name
-        self._pool_handle = uuid.uuid4()
         if connection is None:
             self.connection = self._open()
         else:
@@ -1351,22 +1351,23 @@ class PocketSearch:
             self.spell_checker = SpellChecker(search_instance=self)
         return self.spell_checker
 
-    def _get_db_id(self):
-        if self.db_name is None:
-            db_name = "::%s" % self._pool_handle
-        else:
-            db_name = self.db_name
-        return db_name
 
     def _open(self):
-        return connection_pool.get_connection(self._get_db_id(),self.writeable)
+        if self.db_name is None:
+            logger.debug("Opening connection to in-memory db")
+            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        else:
+            logger.debug("Opening connection to db %s" % self.db_name)
+            connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        connection.row_factory = sqlite3.Row
+        return connection
 
     def _close(self):
         if self.connection:
             if self.writeable:
                 self.commit(force=True)
             logger.debug("Closing connection")
-            connection_pool.release_connection(self._get_db_id(),self.connection,self.writeable)
+            #connection_pool.release_connection(self._get_db_id(),self.connection,self.writeable)
 
     # For backwards compatibility reasons:
     close = _close
@@ -1845,80 +1846,5 @@ class FileSystemReader(IndexReader):
                         with open(file_path, 'r',encoding=self.encoding) as file:
                             yield(self.file_to_dict(file_path, file))
 
-import queue
 
-import sqlite3
-import threading
-
-class ConnectionPool:
-
-    POOL_MAX_READERS = 10
-    POOL_MAX_WRITERS = 1
-    POOL_CONNECTION_TIMEOUT = 5
-
-    class ConnectionError(Exception):
-        '''
-        Raised, if no connection could be acquired
-        '''
-
-    def __init__(self):
-        self.connections = {}
-        self.dict_lock = threading.Semaphore(10)
-
-    def _open(self,db_name,writeable):
-        if db_name is None or db_name.startswith("::"):
-            logger.debug("Opening connection to in-memory db")
-            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        else:
-            logger.debug("Opening connection to db %s" % db_name)
-            connection = sqlite3.connect(db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        connection.row_factory = sqlite3.Row
-        return connection
-
-    def get_connection(self,db_name,writeable):
-        '''
-        Acquire a new connection and raise an exception if none is available
-        '''
-        print(len(self.connections))       
-        logger.debug("Acquiring dict lock.") 
-        with self.dict_lock:
-            if not db_name in self.connections:
-                logger.debug(f"Setting up pool for {db_name}")
-                self.connections[db_name]={}
-                self.connections[db_name]["readers"] = threading.Semaphore(self.POOL_MAX_READERS)
-                self.connections[db_name]["writer"] = threading.Semaphore(self.POOL_MAX_WRITERS)
-        if writeable:
-            logger.debug("Acquiring writer.") 
-            if not(self.connections[db_name]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
-                raise self.ConnectionError("Unable to acquire pocketsearch writer (Timed out)")
-        else:
-            logger.debug("Acquiring reader.") 
-            if not(self.connections[db_name]["readers"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
-                raise self.ConnectionError("Unable to acquire pocketsearch reader (Timed out)")              
-        return self._open(db_name,writeable)
-
-    def release_connection(self, db_name , connection, writeable):
-        '''
-        Release the given connection
-        '''
-        if not self._is_valid_connection(connection):
-            connection.close()
-            return
-        if writeable:
-            logger.debug("Writer released")
-            self.connections[db_name]["writer"].release()
-        else:
-            logger.debug("Reader released")
-            self.connections[db_name]["readers"].release()
-        
-
-    def _is_valid_connection(self, connection):
-        try:
-            connection.execute("SELECT 1;")
-            return True
-        except sqlite3.OperationalError:
-            return False
-
-
-connection_pool = ConnectionPool()
 

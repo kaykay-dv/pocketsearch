@@ -11,6 +11,7 @@ import sys
 import sqlite3
 import os.path
 import unittest
+import threading
 import tempfile
 import datetime
 import logging
@@ -19,7 +20,7 @@ from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
-from pocketsearch import FileSystemReader, ConnectionPool
+from pocketsearch import FileSystemReader
 
 logging.basicConfig(level=logging.DEBUG)  
 
@@ -128,51 +129,7 @@ class BaseTest(unittest.TestCase):
         self.pocket_search.close()
         return super().tearDown()
 
-class ConnectionPoolTest(unittest.TestCase):
-    '''
-    Test con-current access to writeable connections
-    '''
 
-    def test_no_connection_available(self):
-        '''
-        We use two PocketSearch instances with the first one 
-        not having closed its connection. Thus, the second 
-        instance should return an connection error
-        '''
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_name = temp_dir + os.sep + "test.db"
-            p1 = PocketSearch(db_name=db_name,writeable=True)
-            p1.insert(text="a")
-            with self.assertRaises(ConnectionPool.ConnectionError):
-                PocketSearch(db_name=db_name,writeable=True)
-
-    def test_connection_available(self):
-        '''
-        In this test, the first instance properly closes the 
-        connection
-        '''
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_name = temp_dir + os.sep + "test.db"
-            p1 = PocketSearch(db_name=db_name,writeable=True)
-            p1.insert(text="a")
-            p1.close()
-            p2 = PocketSearch(db_name=db_name,writeable=True)        
-            p2.insert(text="b")
-            p2.close()
-
-    def test_get_reader_connections(self):
-        '''
-        Test if exceeding the maximum numbers of readers 
-        raises an ConnectionError
-        '''
-        for i in range(0,ConnectionPool.POOL_MAX_READERS+1):
-            try:
-                PocketSearch()
-            except ConnectionPool.ConnectionError:
-                if i == ConnectionPool.POOL_MAX_READERS:
-                    pass
-                else:
-                    raise ValueError("Maximum number of readers not respected.")
 
 class SQLFunctionTests(BaseTest):
 
@@ -438,9 +395,9 @@ class IndexTest(BaseTest):
             pocket_search.insert(text="21")
         pocket_search.close()
 
-    def test_optimize_within_tranascation(self):
+    def test_optimize_within_transcation(self):
         pocket_search = PocketSearch()
-        pocket_search.insert(text="123")        
+        pocket_search.insert(text="123")
         pocket_search.commit()
         #with self.assertRaises(Exception):
         # this should not work, as vacuum is not allowed at this stage
@@ -1494,35 +1451,6 @@ class LegacyTableTest(unittest.TestCase):
                 writer.insert(body="a",title="b",length=1)
                 self.assertEqual(writer.search(title="my title").count(),1)
                 self.assertEqual(writer.search(title="b").count(),1)
-
-import threading
-
-class TestConcurrentWrites(unittest.TestCase):
-
-    NUM_THREADS = 8
-    NUM_INSERTS = 45
-
-    def write_data(self, data, db_name):
-        search_instance = PocketSearch(db_name=db_name,writeable=True,write_buffer_size=25)
-        for i in range(0,self.NUM_INSERTS):
-            search_instance.insert(text=data + str(i))
-        search_instance.close()
-
-    def test_concurrent_writes(self):
-        # Start two threads to perform concurrent writes
-        threads=[]
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_name = temp_dir + os.sep + "test.db"
-            for i in range(0,self.NUM_THREADS):
-                thread = threading.Thread(target=self.write_data, args=("Writing data from Thread %i " % i,db_name))
-                threads.append(thread)
-                thread.start()
-
-            # Wait for all threads to finish
-            for thread in threads:
-                thread.join()
-            p = PocketSearch(db_name=db_name)
-            self.assertEqual(p.search().count(),self.NUM_THREADS*self.NUM_INSERTS)
 
 if __name__ == '__main__':
     unittest.main()
