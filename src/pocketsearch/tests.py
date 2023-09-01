@@ -364,7 +364,7 @@ class PermanentDatabaseTest(unittest.TestCase):
             db_name = temp_dir + os.sep + "test.db"
             # set write buffer size to 100, so we can test
             # if the context manager does the final commit right:
-            with PocketWriter(db_name=db_name,write_buffer_size=100) as pocket_writer:
+            with PocketWriter(db_name=db_name) as pocket_writer:
                 pocket_writer.insert(text="Hello world.")
             # read out again and do a count
             with PocketReader(db_name=db_name) as pocket_reader:
@@ -385,6 +385,81 @@ class ContextManagerTest(unittest.TestCase):
         # as the PocketReader creates a new database:
         with PocketReader() as pocketsearch:
             self.assertEqual(pocketsearch.search(text="Hello world.").count(),0)    
+
+class TransactionTests(unittest.TestCase):
+    '''
+    Tests that ensure that error handling (and transaction rollbacks more specifically)
+    are handled as expected.
+    '''
+
+    def test_delete(self):
+        '''
+        Test if delete operations are rolled back if an exception occurs.
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=db_name) as writer:
+                writer.insert(text="Text #1")
+                writer.insert(text="Text #2")
+            try:
+                with PocketWriter(db_name=db_name) as writer:
+                    writer.delete(rowid=1)
+                    0 / 0
+            except ZeroDivisionError:
+                with PocketReader(db_name=db_name) as reader:
+                    self.assertEqual(reader.search().count(),2)
+
+    def test_update(self):
+        '''
+        Test if update operations are rolled back if an exception occurs.
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=db_name) as writer:
+                writer.insert(text="Text #1")
+            try:
+                with PocketWriter(db_name=db_name) as writer:
+                    writer.update(rowid=1,text="updated")
+                    0 / 0
+            except ZeroDivisionError:
+                with PocketReader(db_name=db_name) as reader:
+                    self.assertEqual(reader.search(text="updated").count(),0)                    
+
+    def test_delete_all(self):
+        '''
+        Test if delete_all operations are rolled back if an exception occurs.
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=db_name) as writer:
+                writer.insert(text="Text #1")
+            try:
+                with PocketWriter(db_name=db_name) as writer:
+                    writer.delete_all()
+                    0 / 0
+            except ZeroDivisionError:
+                with PocketReader(db_name=db_name) as reader:
+                    self.assertEqual(reader.search().count(),1)
+
+    def test_insert(self):
+        '''
+        Tests, if insert operations are rolled back correctly
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            with PocketWriter(db_name=db_name) as writer:
+                writer.insert(text="Text #1")
+            try:
+                with PocketWriter(db_name=db_name) as writer:
+                    writer.insert(text="Text #2")
+                    writer.insert(text="Text #3")
+                    # now cause an exception - this should lead to a rollback 
+                    # in the database
+                    0 / 0
+            except ZeroDivisionError:
+                with PocketReader(db_name=db_name) as reader:
+                    self.assertEqual(reader.search(text="text").count(),1)
+
 
 class IndexTest(BaseTest):
 
@@ -662,22 +737,22 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(p.search(f1="c",f2="d").count(),1)
         p.close()
 
-    def test_buffered_writes(self):
-        '''
-        Test buffered writing
-        '''
-        pocket_search = PocketSearch(write_buffer_size=3,writeable=True)
-        pocket_search.insert(text="A")
-        # inserted row is immediately visible:
-        self.assertEqual(pocket_search.search().count(),1)
-        self.assertEqual(pocket_search.write_buffer,1)
-        pocket_search.insert(text="B")
-        self.assertEqual(pocket_search.search().count(),2)
-        self.assertEqual(pocket_search.write_buffer,2)
-        pocket_search.insert(text="C")
-        self.assertEqual(pocket_search.search().count(),3)
-        # now the write buffer should be set back to 0
-        self.assertEqual(pocket_search.write_buffer,0)
+    #def test_buffered_writes(self):
+    #    '''
+    #    Test buffered writing
+    #    '''
+    #    pocket_search = PocketSearch(write_buffer_size=3,writeable=True)
+    #    pocket_search.insert(text="A")
+    #    # inserted row is immediately visible:
+    #    self.assertEqual(pocket_search.search().count(),1)
+    #    self.assertEqual(pocket_search.write_buffer,1)
+    #    pocket_search.insert(text="B")
+    #    self.assertEqual(pocket_search.search().count(),2)
+    #    self.assertEqual(pocket_search.write_buffer,2)
+    #    pocket_search.insert(text="C")
+    #    self.assertEqual(pocket_search.search().count(),3)
+    #    # now the write buffer should be set back to 0
+    #    self.assertEqual(pocket_search.write_buffer,0)
 
 class AutocompleteTest(unittest.TestCase):
     '''
@@ -1223,7 +1298,7 @@ class FileSystemReaderTests(unittest.TestCase):
             self.assertEqual(pocket_search.search(text="world").count(), 3)
             pocket_search.close()
 
-class SpellCheckerTest(BaseTest):
+class SpellCheckerTest(unittest.TestCase):
     '''
     Tests for spell checking class
     '''
@@ -1253,7 +1328,7 @@ class SpellCheckerTest(BaseTest):
     def test_suggest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             self.db_name = temp_dir + os.sep + "test.db"
-            with PocketWriter(db_name=self.db_name,schema=self.TestSchema) as pocketwriter:
+            with PocketWriter(db_name=self.db_name,schema=self.TestSchema) as pocketwriter:                
                 for title, text in [
                     ("Blade Runner","Written in 1982"),
                     ("Indiana Jones 1","Written in the eighties"),
@@ -1261,6 +1336,7 @@ class SpellCheckerTest(BaseTest):
                     ("Hello","World")
                 ]:
                     pocketwriter.insert(title=title,text=text)
+                pocketwriter.spell_checker().build()
             with PocketReader(db_name=self.db_name,schema=self.TestSchema) as pocketreader:
                 results = pocketreader.suggest("' lInddjiana agn jin th?i _writen& eigh  ")
                 expected = {'agn': [('again', 2)],
@@ -1434,10 +1510,8 @@ class LegacyTableTest(unittest.TestCase):
             db_name = temp_dir+os.sep+"test.db"
             # Create table manually
             self._create_database(db_name)
-            with PocketWriter(index_name="document",db_name=db_name,schema=self.LegacyTableSchema):
-                pass
-                #writer._populate_fts()
-                #writer.insert(body="a",title="b")
+            with PocketWriter(index_name="document",db_name=db_name,schema=self.LegacyTableSchema) as writer:
+                writer.spell_checker().build()
             with PocketReader(index_name="document",db_name=db_name,schema=self.LegacyTableSchema) as reader:
                 record = reader.search(body="test")[0]
                 self.assertEqual(record.id,2)

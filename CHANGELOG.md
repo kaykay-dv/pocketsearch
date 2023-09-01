@@ -1,10 +1,14 @@
 # Change log
 
-## Version 0.13.0
+## Version 0.20.0
 * Fixed a bug in trigger definitions
 * Added possibility to use "legacy" (tables already defined in a sqlite3 database) tables (https://github.com/kaykay-dv/pocketsearch/issues/42)
 * Added proper handling for empty string queries (https://github.com/kaykay-dv/pocketsearch/issues/43)
 * Added possiblity to define own "id" fields (https://github.com/kaykay-dv/pocketsearch/issues/42)
+
+**Breaking changes compared to 0.12 and lower**
+* PocketWriters are now opening their own transactions. If an exception is raised the transaction is rolled back.
+* Table creation (FTS5 tables) are now wrapped in an own transaction
 
 ## Version 0.12.0
 * Added context managers PocketReader and PocketWriter

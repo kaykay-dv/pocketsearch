@@ -1184,21 +1184,26 @@ class PocketWriter(PocketContextManager):
 
     def __init__(self,db_name=None,
                  index_name="documents",
-                 schema=DefaultSchema,
-                 write_buffer_size=1):
+                 schema=DefaultSchema):
         self.pocketsearch = PocketSearch(
             index_name=index_name,
             db_name=db_name,
             schema=schema,
-            writeable=True,
-            write_buffer_size=write_buffer_size
+            writeable=True
         )
+        self.pocketsearch.execute_sql("begin")
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if self.pocketsearch.schema._meta.spell_check:
-            logger.debug("Building spell checking dictionary")
-            self.pocketsearch._get_or_create_spellchecker_instance().build()
-        self.pocketsearch.close()
+        if exc_type is None:
+            if self.pocketsearch.schema._meta.spell_check:
+                logger.debug("Building spell checking dictionary")
+                #self.pocketsearch._get_or_create_spellchecker_instance().build()
+            self.pocketsearch.execute_sql("commit")
+        else:
+            logger.exception(exc_traceback)
+            logger.debug("Rolling back transaction")
+            self.pocketsearch.execute_sql("rollback")
+        #self.pocketsearch.close()
 
 class SpellChecker:
     '''
@@ -1220,8 +1225,7 @@ class SpellChecker:
                                           index_name="spellcheck_%s" % search_instance.index_name,
                                           writeable=search_instance.writeable,
                                           schema=self.SpellCheckerSchema,
-                                          connection=search_instance.connection,
-                                          write_buffer_size=search_instance.write_buffer_size)
+                                          connection=search_instance.connection)
 
     def _generate_bigrams(self,token,operator=" "):
         bigrams = []
@@ -1254,7 +1258,6 @@ class SpellChecker:
                         distance[i - 1][j - 1] + 1  # Substitution
                     )
         return distance[m][n]
-
 
     def build(self):
         '''
@@ -1325,14 +1328,11 @@ class PocketSearch:
                  index_name="documents",
                  schema=DefaultSchema,
                  writeable=False,
-                 write_buffer_size=1,
                  connection=None):
         self.db_name = db_name
         self.schema = schema(index_name)
         self.db_name = db_name
         self.writeable = writeable
-        self.write_buffer=0 # keep a record of writes performed by insert statement
-        self.write_buffer_size=write_buffer_size
         self.index_name = index_name
         if connection is None:
             self.connection = self._open()
@@ -1344,13 +1344,18 @@ class PocketSearch:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
-        self.spell_checker = None
+        if self.schema._meta.spell_check:
+            self._spell_checker = SpellChecker(search_instance=self)
+        else:
+            self._spell_checker = None
 
-    def _get_or_create_spellchecker_instance(self):
+    def spell_checker(self):
+        '''
+        Returns spell checker instance (if available)
+        '''
         if self.spell_checker is None:
-            self.spell_checker = SpellChecker(search_instance=self)
-        return self.spell_checker
-
+            raise self.schema.SchemaError("PocketSearch instance is not configured to use spell checking. Check your schema definition.")
+        return self._spell_checker
 
     def _open(self):
         if self.db_name is None:
@@ -1365,7 +1370,7 @@ class PocketSearch:
     def _close(self):
         if self.connection:
             if self.writeable:
-                self.commit(force=True)
+                self.commit()
             logger.debug("Closing connection")
             #connection_pool.release_connection(self._get_db_id(),self.connection,self.writeable)
 
@@ -1520,6 +1525,7 @@ class PocketSearch:
         INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
         END;
         '''
+        self.cursor.execute("begin")
         self.cursor.execute(sql_table)
         self.cursor.execute(sql_aux_table)
         logger.debug(sql_table)
@@ -1543,6 +1549,8 @@ class PocketSearch:
             self.cursor.execute("insert or ignore into pocket_search_master values (?,?)",(index_name,content))
             for field in default_index_fields:
                 self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+        logger.debug("Commiting transaction")
+        self.cursor.execute("commit")
 
     def tokens(self):
         '''
@@ -1613,20 +1621,17 @@ class PocketSearch:
                                                               ",".join(placeholder_values))
         try:
             self.cursor.execute(sql, values)
-            self.write_buffer+=1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        self.connection.commit()
+        #self.connection.commit()
 
-    def commit(self,force=False):
+    def commit(self):
         '''
         Commit current changes to database. Commits are only performed 
         when the buffer is full.
         '''
-        if self.write_buffer >= self.write_buffer_size or force:
-            logger.debug("Committing.")
-            self.connection.commit()
-            self.write_buffer=0 # reset buffer
+        logger.debug("Committing.")
+        self.connection.commit()
 
     def optimize(self):
         '''
@@ -1640,6 +1645,21 @@ class PocketSearch:
         connection = self._open()
         connection.cursor().execute("VACUUM")
         connection.close()
+
+    def get(self, rowid):
+        '''
+        Get a document from the index. rowid is the integer id of the document.
+        '''
+        sql = "select * from %s  where id=?" % (self.schema.name,)
+        fields = self.schema.get_fields()
+        logger.debug(sql)
+        doc = self.cursor.execute(sql, (rowid,)).fetchone()
+        if doc is None:
+            raise self.DocumentDoesNotExist()
+        document = Document(fields)
+        for field in doc.keys():
+            setattr(document, field, doc[field])
+        return document
 
     def insert(self, *args, **kwargs):
         '''
@@ -1660,25 +1680,9 @@ class PocketSearch:
         try:
             logger.debug(sql)
             self.cursor.execute(sql, values)
-            self.write_buffer = self.write_buffer + 1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        self.commit()
-
-    def get(self, rowid):
-        '''
-        Get a document from the index. rowid is the integer id of the document.
-        '''
-        sql = "select * from %s  where id=?" % (self.schema.name,)
-        fields = self.schema.get_fields()
-        logger.debug(sql)
-        doc = self.cursor.execute(sql, (rowid,)).fetchone()
-        if doc is None:
-            raise self.DocumentDoesNotExist()
-        document = Document(fields)
-        for field in doc.keys():
-            setattr(document, field, doc[field])
-        return document
+        #self.commit()
 
     def update(self, **kwargs):
         '''
@@ -1696,8 +1700,7 @@ class PocketSearch:
         sql = "update %s set %s where %s=?" % (self.schema.name, ",".join(stmt),id_field)
         logger.debug(sql)
         self.cursor.execute(sql, values)
-        self.write_buffer = self.write_buffer + 1
-        self.commit()
+        #self.commit()
 
     def delete(self, rowid):
         '''
@@ -1709,8 +1712,7 @@ class PocketSearch:
         sql = "delete from %s where %s = ?" % (self.schema.name,id_field)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
-        self.write_buffer = self.write_buffer + 1
-        self.commit()
+        #self.commit()
 
     def delete_all(self):
         '''
@@ -1720,7 +1722,7 @@ class PocketSearch:
         sql = "delete from %s" % self.schema.name
         logger.debug(sql)
         self.cursor.execute(sql)
-        self.commit()
+        #self.commit()
 
     def autocomplete(self,*args,**kwargs):
         '''
@@ -1757,7 +1759,7 @@ class PocketSearch:
 
     def suggest(self,query):
         if self.schema._meta.spell_check:
-            return self._get_or_create_spellchecker_instance().suggest(query)
+            return self.spell_checker().suggest(query)
         raise Query.QueryError("Spell checks are not supported in this index.")
 
     def _clear_kwargs(self,kwargs):
