@@ -16,7 +16,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema
+from pocketsearch import PocketSearch,PocketReader, PocketWriter,Schema, ConnectionPool, connection_pool
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
@@ -1525,6 +1525,77 @@ class LegacyTableTest(unittest.TestCase):
                 writer.insert(body="a",title="b",length=1)
                 self.assertEqual(writer.search(title="my title").count(),1)
                 self.assertEqual(writer.search(title="b").count(),1)
+
+
+class ConnectionPoolTest(unittest.TestCase):
+    '''
+    Test con-current access to writeable connections
+    '''
+
+    def setUp(self):
+        connection_pool.connections.clear()
+
+    def test_no_connection_available(self):
+        '''
+        We use two PocketSearch instances with the first one 
+        not having closed its connection. Thus, the second 
+        instance should return an connection error
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            p1 = PocketSearch(db_name=db_name,writeable=True)
+            p1.insert(text="a")
+            with self.assertRaises(ConnectionPool.ConnectionError):
+                PocketSearch(db_name=db_name,writeable=True)
+
+    def test_connection_available(self):
+        '''
+        In this test, the first instance properly closes the 
+        connection and the second instance can access the database
+        '''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            p1 = PocketSearch(db_name=db_name,writeable=True)
+            p1.insert(text="a")
+            p1.close()
+            p2 = PocketSearch(db_name=db_name,writeable=True)        
+            p2.insert(text="b")
+            p2.close()
+
+class TestConcurrentWrites(unittest.TestCase):
+    '''
+    This test runs NUM_THREADS concurrent threads and performs 
+    a number of inserts given in the NUM_INSERTS variables. 
+    It is tested, if the thread writing to the database gets 
+    an exclusive lock for the write operations.
+    '''
+
+    NUM_THREADS = 32
+    NUM_INSERTS = 64
+
+    def write_data(self, data, db_name):
+        '''
+        Write dummy data to database
+        '''
+        with PocketWriter(db_name=db_name) as writer:
+            for i in range(0,self.NUM_INSERTS):
+                writer.insert(text=data + str(i))
+
+    def test_concurrent_writes(self):
+        # Start two threads to perform concurrent writes
+        threads=[]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_name = temp_dir + os.sep + "test.db"
+            for i in range(0,self.NUM_THREADS):
+                thread = threading.Thread(target=self.write_data, args=("Writing data from Thread %i " % i,db_name))
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all threads to finish
+            for thread in threads:
+                thread.join()
+            p = PocketSearch(db_name=db_name)
+            self.assertEqual(p.search().count(),self.NUM_THREADS*self.NUM_INSERTS)
 
 if __name__ == '__main__':
     unittest.main()

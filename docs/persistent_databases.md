@@ -10,10 +10,15 @@ pocket_search.close()
 ```
 
 Invoking the .close method will commit any unwritten changes to the index and close 
-the database connection to the index.
+the database connection to the index. If you want to keep the connection open and 
+commit changes use
+
+```Python
+pocket_search.commit()
+```
 
 If you want to open the database at a later stage for searching open it in 
-read-only mode use:
+read-only mode:
 
 ```Python
 pocket_search = PocketSearch(db_name="my_db.db")
@@ -46,6 +51,10 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
 The connection will be closed implicitly after the context manager has been left and any changes committed to the database.
 If an exception occurrs, any changes will be rolled backed. 
 
+Be aware that PocketWriters acquire a mutual exclusive connection to the database, thus PocketWriters are considered thread-safe.
+Having said that, if a PocketWriter writes any other threads have to wait until the exclusion connection has been released. If a 
+time out has been reached reached an exception is thrown. 
+
 ### Reading from an index
 
 In the same way you can create a PocketReader instance to interact with the search 
@@ -57,7 +66,6 @@ with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
     pocket_reader.search(text="Hello world")
 ```
 
-Again, the connection will be closed after context manager has been left.
 
 
 
