@@ -175,8 +175,6 @@ pocket_search.delete_all()
 
 ## Using legacy tables
 
-(Added in version 0.13.0)
-
 Sometimes, we already have an existing sqlite3 table with data that we want to put into a search index. 
 Assume we have a table document defined in a database called "legacy.db":
 
@@ -248,5 +246,5 @@ with PocketReader(index_name="document",db_name="legacy.db",schema=self.Article)
 
 > **_NOTE:_** Currently there is no way to remove the old index through the library. You have to 
 delete the associated tables directly in the database.
- 
+
 

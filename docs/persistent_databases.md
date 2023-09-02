@@ -52,8 +52,8 @@ The connection will be closed implicitly after the context manager has been left
 If an exception occurrs, any changes will be rolled backed. 
 
 Be aware that PocketWriters acquire a mutual exclusive connection to the database, thus PocketWriters are considered thread-safe.
-Having said that, if a PocketWriter writes any other threads have to wait until the exclusion connection has been released. If a 
-time out has been reached reached an exception is thrown. 
+This means, if writes are in progress, other threads have to wait until the writes are finished. If a time out (the default is 5 seconds) 
+is reached before an connection can be acquired, an exception is raised.  
 
 ### Reading from an index
 
@@ -66,6 +66,7 @@ with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
     pocket_reader.search(text="Hello world")
 ```
 
+Unlike its PocketWriter counterpart, PocketReaders do not require exclusive access to the database. 
 
 
 
