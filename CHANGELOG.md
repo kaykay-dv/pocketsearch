@@ -6,8 +6,8 @@
 * Added proper handling for empty string queries (https://github.com/kaykay-dv/pocketsearch/issues/43)
 * Added possiblity to define own "id" fields (https://github.com/kaykay-dv/pocketsearch/issues/42)
 
-**Breaking changes compared to 0.12 and lower**
-* PocketWriters are now opening their own transactions. If an exception is raised the transaction is rolled back.
+**Breaking changes**
+* PocketWriters are now using transactions. If an exception is raised the transaction is rolled back.
 * Table creation (FTS5 tables) are now wrapped in an own transaction
 
 ## Version 0.12.0

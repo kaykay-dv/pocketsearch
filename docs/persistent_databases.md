@@ -43,7 +43,8 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
 
-The connection will be closed implicitly after the context manager has been left.
+The connection will be closed implicitly after the context manager has been left and any changes committed to the database.
+If an exception occurrs, any changes will be rolled backed. 
 
 ### Reading from an index
 
@@ -58,8 +59,7 @@ with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
 
 Again, the connection will be closed after context manager has been left.
 
-> **_NOTE:_**  Some of pocketsearch's functionality (such as spell checking) is only available when using 
-PocketReader and PocketWriter instances.
+
 
 
 
