@@ -1,10 +1,12 @@
 # Change log
 
 ## Version 0.20.0
-* Fixed a bug in trigger definitions
+* Added connection pool class and made PocketWriter instances thread-safe
 * Added possibility to use "legacy" (tables already defined in a sqlite3 database) tables (https://github.com/kaykay-dv/pocketsearch/issues/42)
 * Added proper handling for empty string queries (https://github.com/kaykay-dv/pocketsearch/issues/43)
 * Added possiblity to define own "id" fields (https://github.com/kaykay-dv/pocketsearch/issues/42)
+* Fixed a bug in trigger definitions
+
 
 **Breaking changes**
 * PocketWriters are now using transactions. If an exception is raised the transaction is rolled back.
