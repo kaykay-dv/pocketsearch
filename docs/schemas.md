@@ -217,16 +217,6 @@ otherwise an exception is raised.
 > **_NOTE:_** The PocketWriter class will automatically populate the search index with all documents found in the legacy table, 
 so the first execution may take some time depending on the size of the table. 
 
-## Improving performance: Write buffers
-
-By default a commit to the database is executed after each call to .insert, .update or .delete.
-If you want to speed up database modifications, you can use the write_buffer_size option:
-
-```Python
-# Commit is done after 500 documents have been inserted:
-pocketsearch.PocketSearch(db_name="my_db.db",write_buffer_size=500)
-```
-
 ## Schema migrations
 
 PocketSearch does not provide means to update an existing schema, thus adding or removing fields. 
@@ -246,19 +236,17 @@ class Article(Schema):
     body=Text(index=True)
 ```
 
+We now create a new index and copy all existing data to the new index:
+
 ```Python
 with PocketReader(index_name="document",db_name="legacy.db",schema=self.Article) as reader:
+    # Copy all data from the "document" index to a new "document_v2" index:
     with PocketWriter(index_name="document_v2",db_name="legacy.db",schema=self.Article) as writer:
         for article in reader.search():
             writer.insert(title='some default',body=article.body)
-
-
-
-Using the PocketWriter context manager:
-
-```Python
-# Commit is done after 500 documents have been inserted using a PocketWriter
-with pocketsearch.PocketWriter(db_name="my_db.db",write_buffer_size=500) as pocket_writer:
-    pocket_writer.insert(text="Hello world")
 ```
+
+> **_NOTE:_** Currently there is no way to remove the old index through the library. You have to 
+delete the associated tables directly in the database.
+ 
 
