@@ -66,9 +66,9 @@ pocket_reader.suggest("hllo wrld")
 Spellchecking is done as follows:
 
 * A separate pocketsearch instance is built in the background 
-* The token table of the original pocketsearch instance is scanned and tokens are divided into bigrams
+* The token table of the original pocketsearch instance is scanned and tokens are divided into [bigrams](https://en.wikipedia.org/wiki/Bigram)
 * Bigrams are stored in the spellchecker dictionary
-* .suggest tokenizes the query and splits each token into bigram.
+* .suggest tokenizes the query and splits each token into bigrams
 * . suggest will then search the bigrams order them by rank and additionally calculate the [Levensthein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) retrieving top 10 suggestions.
 
 
