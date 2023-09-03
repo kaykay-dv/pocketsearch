@@ -7,12 +7,15 @@ WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WI
 THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
+import threading
 import sqlite3
+import collections
 import unicodedata
 import os
 import time
 import abc
 import copy
+import uuid
 import logging
 
 logger = logging.getLogger(__name__)
@@ -176,13 +179,7 @@ class Field(abc.ABC):
         '''
         Return the full qualified name including its table for the given field.
         '''
-        if self.index:
-            if self.fts_enabled():
-                return "%s_fts.%s" % (self.schema.name, self.name)
-            else:
-                return "%s.%s" % (self.schema.name, self.name)
-        else:
-            return "%s.%s" % (self.schema.name, self.name)
+        return "%s.%s" % (self.schema.name, self.name)
 
     def to_sql(self, index_table=False):
         '''
@@ -284,7 +281,7 @@ class Schema:
     A schema defines what fields can be searched in the search index.
     '''
 
-    id = IdField()
+    #id = IdField()
     rank = Rank()
 
     class Meta:
@@ -334,7 +331,7 @@ class Schema:
         self._meta = self.Meta()
         self._set_meta_defaults()
         self.name = name
-        self.fields = {}
+        self.fields = collections.OrderedDict()
         self.field_index = {} # required by some SQL functions, e.g. highlight
         self.fields_with_default = {}
         self.reverse_lookup = {}
@@ -368,10 +365,29 @@ class Schema:
                 if obj.fts_enabled():
                     self.field_index[obj.name]=field_index
                     field_index+=1
+        if not(self.get_id_field()):
+            obj = IdField()
+            obj.name="id"
+            self.fields["id"] = obj
+            self.fields["id"].schema=self
+            self.reverse_lookup[obj] = "id"
 
         for field in self:
             if field.default is not None:
                 self.fields_with_default[field.name] = field
+
+    def get_id_field(self):
+        '''
+        Returns True if the current schema has explicitly 
+        defined an IdField
+        '''
+        for elem in dir(self):
+            obj = getattr(self, elem)
+            if isinstance(obj, IdField):
+                return elem
+        return None
+
+
 
     def get_field(self, field_name, raise_exception=False):
         '''
@@ -569,7 +585,7 @@ LOOKUPS = {
 
 }
 
-FTS_OPERATORS = ["-", ".","#","NEAR"]
+FTS_OPERATORS = ["-", ".","#","NEAR","@"]
 
 class Filter(SQLQueryComponent):
     '''
@@ -973,6 +989,7 @@ class Query:
 
     def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
+        id_field = self.search_instance.schema.get_id_field() or "id"        
         self.arguments = arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         self.unions = []
@@ -989,7 +1006,7 @@ class Query:
                         self.sql_query.where(field=argument.field,lookup=lookup , operator = q_expr.operator)
         self.sql_query.table(table_name=self.search_instance.schema.name)
         self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name)
-        self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], "id", "rowid")
+        self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], id_field, "rowid")
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
         self._default_order_by_set = True
@@ -1155,8 +1172,9 @@ class PocketReader(PocketContextManager):
     '''
 
     def __init__(self,db_name=None,
+                      index_name="documents",
                       schema=DefaultSchema):
-        self.pocketsearch = PocketSearch(db_name=db_name,schema=schema)
+        self.pocketsearch = PocketSearch(index_name=index_name,db_name=db_name,schema=schema)
 
 class PocketWriter(PocketContextManager):
     '''
@@ -1165,19 +1183,26 @@ class PocketWriter(PocketContextManager):
     '''    
 
     def __init__(self,db_name=None,
-                 schema=DefaultSchema,
-                 write_buffer_size=1):
+                 index_name="documents",
+                 schema=DefaultSchema):
         self.pocketsearch = PocketSearch(
+            index_name=index_name,
             db_name=db_name,
             schema=schema,
-            writeable=True,
-            write_buffer_size=write_buffer_size
+            writeable=True
         )
+        self.pocketsearch.execute_sql("begin")
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if self.pocketsearch.schema._meta.spell_check:
-            logger.debug("Building spell checking dictionary")
-            self.pocketsearch._get_or_create_spellchecker_instance().build()
+        if exc_type is None:
+            if self.pocketsearch.schema._meta.spell_check:
+                logger.debug("Building spell checking dictionary")
+                #self.pocketsearch._get_or_create_spellchecker_instance().build()
+            self.pocketsearch.execute_sql("commit")
+        else:
+            logger.exception(exc_traceback)
+            logger.debug("Rolling back transaction")
+            self.pocketsearch.execute_sql("rollback")
         self.pocketsearch.close()
 
 class SpellChecker:
@@ -1200,8 +1225,7 @@ class SpellChecker:
                                           index_name="spellcheck_%s" % search_instance.index_name,
                                           writeable=search_instance.writeable,
                                           schema=self.SpellCheckerSchema,
-                                          connection=search_instance.connection,
-                                          write_buffer_size=search_instance.write_buffer_size)
+                                          connection=search_instance.connection)
 
     def _generate_bigrams(self,token,operator=" "):
         bigrams = []
@@ -1234,7 +1258,6 @@ class SpellChecker:
                         distance[i - 1][j - 1] + 1  # Substitution
                     )
         return distance[m][n]
-
 
     def build(self):
         '''
@@ -1305,49 +1328,58 @@ class PocketSearch:
                  index_name="documents",
                  schema=DefaultSchema,
                  writeable=False,
-                 write_buffer_size=1,
                  connection=None):
         self.db_name = db_name
+        self.schema = schema(index_name)
+        self.db_name = db_name
+        self.db_id = uuid.uuid4()
+        self.writeable = writeable
+        self.index_name = index_name
         if connection is None:
             self.connection = self._open()
         else:
             self.connection = connection
             logger.debug("Re-using existing database connection %s" % connection)            
-        self.cursor = self.connection.cursor()
-        self.schema = schema(index_name)
-        self.db_name = db_name
-        self.writeable = writeable
-        self.write_buffer=0 # keep a record of writes performed by insert statement
-        self.write_buffer_size=write_buffer_size
-        self.index_name = index_name
+        self.cursor = self.connection.cursor()        
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
             self._create_table(self.schema.name)
-        self.spell_checker = None
+        if self.schema._meta.spell_check:
+            self._spell_checker = SpellChecker(search_instance=self)
+        else:
+            self._spell_checker = None
 
-    def _get_or_create_spellchecker_instance(self):
+    def spell_checker(self):
+        '''
+        Returns spell checker instance (if available)
+        '''
         if self.spell_checker is None:
-            self.spell_checker = SpellChecker(search_instance=self)
-        return self.spell_checker
+            raise self.schema.SchemaError("PocketSearch instance is not configured to use spell checking. Check your schema definition.")
+        return self._spell_checker
+
+    def _u_name(self):
+        if self.db_name is None:
+            return "::%s" % self.db_id
+        return self.db_name
 
     def _open(self):
-        if self.db_name is None:
-            logger.debug("Opening connection to in-memory db")
-            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        else:
-            logger.debug("Opening connection to db %s" % self.db_name)
-            connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        connection.row_factory = sqlite3.Row
-        return connection
+        #if self.db_name is None:
+        #    logger.debug("Opening connection to in-memory db")
+        #    connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        #else:
+        #    logger.debug("Opening connection to db %s" % self.db_name)
+        #    connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        #connection.row_factory = sqlite3.Row
+        return connection_pool.get_connection(db_name=self.db_name,writeable=self.writeable)
+
 
     def _close(self):
         if self.connection:
             if self.writeable:
-                self.commit(force=True)
+                self.commit()
             logger.debug("Closing connection")
-            self.connection.close()
-            self.connection = None
+            connection_pool.release_connection(self.db_name,self.connection,self.writeable)
 
     # For backwards compatibility reasons:
     close = _close
@@ -1366,6 +1398,18 @@ class PocketSearch:
         '''
         logger.debug("sql=%s,args=%s" % (sql,args))
         return self.cursor.execute(sql, args)
+
+    def _populate_fts(self):
+        '''
+        Manually populates the FTS5 virtual table with content found in 
+        the index_name table.
+        '''
+        for row in self.cursor.execute('select * from %s' % self.index_name):
+            params={}
+            for col in row.keys():
+                if col != "id":
+                    params[col]=row[col]
+            self.insert("%s_fts" % self.index_name,**params)
 
     def _format_sql(self, index_name, fields, sql):
         '''
@@ -1398,6 +1442,41 @@ class PocketSearch:
             return ", prefix='{prefix_index}'".format(prefix_index=" ".join(str(item) for item in prefix_index))
         return ""
 
+    def _table_exists(self):
+        self.cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (self.index_name,))
+        table_exists = self.cursor.fetchone()[0] > 0
+        self.cursor.execute("SELECT * from pocket_search_master where name = ?",(self.index_name,))
+        managed = self.cursor.fetchone()
+        if managed is None:
+            mgmt_type = (False,"")
+        else:
+            mgmt_type = (True,managed["content"])
+        return table_exists , mgmt_type
+
+    def _check_fields(self):
+        self.cursor.execute("PRAGMA table_info(%s)" % self.index_name)
+        table_info = self.cursor.fetchall()
+        fields = {}
+        mappings = {
+            "INT" : "INTEGER",
+            "FLOAT" : "REAL"
+        }
+        for column in table_info:
+            if column[2].upper().startswith("VARCHAR"):
+                data_type = "TEXT"
+            else:
+                data_type = mappings.get(column[2].upper(),column[2])
+            fields[column[1]]=data_type
+        # check schema
+        for field , definition in self.schema.fields.items():
+            if field != "rank":
+                if field not in fields:
+                    raise self.DatabaseError(f"'{field}' is present in the schema but has not been defined in the legacy table.")
+                if definition.data_type != fields[field]:
+                    legacy_definition = fields[field]
+                    raise self.DatabaseError(f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
+        return True
+
     def _create_table(self, index_name):
         '''
         Private method to create the SQL tables used by the index.
@@ -1405,6 +1484,7 @@ class PocketSearch:
         fields = []
         index_fields = []
         default_index_fields = []  # non-FTS index fields
+        id_field = self.schema.get_id_field() or "id"
         for field in self.schema:
             if (not(field.hidden)):
                 if field.index and field.fts_enabled():
@@ -1418,39 +1498,66 @@ class PocketSearch:
         fts_fields = ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
         additional_options = self._create_additional_options()
         prefix_index = self._create_prefix_index()
+        # Create meta table holding all pocketsearch created search index names:
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS pocket_search_master (name TEXT unique, content TEXT)")
+        # Check if the table is already there and if it is under management of pocketsearch:
+        table_exists, mgmt_type = self._table_exists()
+        content = self.index_name
+        if table_exists:
+            # This is a table that has been created outside of pocketsearch.
+            # We will create a contentless fts5 virtual table:
+            self._check_fields()
+            managed, content = mgmt_type
         sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
-            content='{index_name}', content_rowid='id' {additional_options} {prefix_index});
-        '''
+            content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
+        ''' 
         # aux tables
         sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
-        sql_trigger_insert = '''
+        old_cols = ", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        new_cols = ", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        sql_trigger_insert = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
         END;'''
-        sql_trigger_delete = '''
+        sql_trigger_delete = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ad AFTER DELETE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.{id_field}, {old_cols});
         END;'''
-        sql_trigger_update = '''
+        sql_trigger_update = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_au AFTER UPDATE ON {index_name} BEGIN
-        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {cols}) VALUES('delete', old.id, {old_cols});
-        INSERT INTO {index_name}_fts(rowid, {cols}) VALUES (new.id, {new_cols});
+        INSERT INTO {index_name}_fts({index_name}_fts, rowid, {fts_fields}) VALUES('delete', old.{id_field}, {old_cols});
+        INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
         END;
         '''
+        self.cursor.execute("begin")
         self.cursor.execute(sql_table)
         self.cursor.execute(sql_aux_table)
         logger.debug(sql_table)
         logger.debug(sql_virtual_table)
+        logger.debug(sql_trigger_insert)
+        logger.debug(sql_trigger_delete)
+        logger.debug(sql_trigger_update)
         self.cursor.execute(sql_virtual_table)
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
-        # create standard indices
-        for field in default_index_fields:
-            self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+        if table_exists:
+            if not(managed):
+                # Index existing data, this will be executed only once
+                sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {fts_fields} FROM {index_name}"
+                logger.debug(sql_index_data)
+                self.cursor.execute(sql_index_data)
+                self.cursor.execute("insert or ignore into pocket_search_master values (?,?)",(index_name,content))
+        else:
+            # create standard indices
+            self.cursor.execute("insert or ignore into pocket_search_master values (?,?)",(index_name,content))
+            for field in default_index_fields:
+                self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+        logger.debug("Commiting transaction")
+        self.cursor.execute("commit")
 
     def tokens(self):
         '''
@@ -1471,6 +1578,7 @@ class PocketSearch:
         a dictionary of argument objects.
         '''
         referenced_fields = {}
+        id_field = self.schema.get_id_field() or "id"
         for kwarg in kwargs:
             comp = kwarg.split("__")
             if comp[0] not in referenced_fields:
@@ -1490,7 +1598,7 @@ class PocketSearch:
                         raise self.FieldError("Unknown lookup: '%s' in field '%s'" % (name, f))
         arguments = {}
         for field in self.schema:
-            if field.name not in referenced_fields and not(for_search) and field.name not in ["id", "rank"]:
+            if field.name not in referenced_fields and not(for_search) and field.name not in [id_field, "rank"]:
                 raise self.FieldError("Missing field '%s' in keyword arguments." % field.name)
             if field.name in referenced_fields:
                 arguments[field.name] = self.Argument(field, referenced_fields[field.name])
@@ -1520,20 +1628,17 @@ class PocketSearch:
                                                               ",".join(placeholder_values))
         try:
             self.cursor.execute(sql, values)
-            self.write_buffer+=1
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        self.connection.commit()
+        #self.connection.commit()
 
-    def commit(self,force=False):
+    def commit(self):
         '''
         Commit current changes to database. Commits are only performed 
         when the buffer is full.
         '''
-        if self.write_buffer >= self.write_buffer_size or force:
-            logger.debug("Committing.")
-            self.connection.commit()
-            self.write_buffer=0 # reset buffer
+        logger.debug("Committing.")
+        self.connection.commit()
 
     def optimize(self):
         '''
@@ -1547,26 +1652,6 @@ class PocketSearch:
         connection = self._open()
         connection.cursor().execute("VACUUM")
         connection.close()
-
-    def insert(self, *args, **kwargs):
-        '''
-        Inserts a new document to the search index.
-        '''
-        self.assure_writeable()
-        arguments = self.get_arguments(kwargs, for_search=False)
-        joined_fields = ",".join([f for f in arguments])
-        values = [argument.lookups[0].value for argument in arguments.values()]
-        placeholder_values = "?" * len(values)
-        sql = "insert into %s (%s) values (%s)" % (self.schema.name,
-                                                   joined_fields,
-                                                   ",".join(placeholder_values))
-        try:
-            logger.debug(sql)
-            self.cursor.execute(sql, values)
-            self.write_buffer = self.write_buffer + 1
-        except Exception as sql_error:
-            raise self.DatabaseError(sql_error)
-        self.commit()
 
     def get(self, rowid):
         '''
@@ -1583,23 +1668,46 @@ class PocketSearch:
             setattr(document, field, doc[field])
         return document
 
+    def insert(self, *args, **kwargs):
+        '''
+        Inserts a new document to the search index.
+        '''
+        self.assure_writeable()
+        if len(args)>0:
+            table_name = args[0]
+        else:
+            table_name = self.schema.name
+        arguments = self.get_arguments(kwargs, for_search=False)
+        joined_fields = ",".join([f for f in arguments])
+        values = [argument.lookups[0].value for argument in arguments.values()]
+        placeholder_values = "?" * len(values)
+        sql = "insert into %s (%s) values (%s)" % (table_name,
+                                                   joined_fields,
+                                                   ",".join(placeholder_values))
+        try:
+            logger.debug(sql)
+            self.cursor.execute(sql, values)
+        except Exception as sql_error:
+            raise self.DatabaseError(sql_error)
+        #self.commit()
+
     def update(self, **kwargs):
         '''
         Updates a document. A rowid keyword argument must be provided. If the
         the rowid is not found, no update is done and no error is thrown.
         '''
         self.assure_writeable()
+        id_field = self.schema.get_id_field() or "id"
         docid = kwargs.pop("rowid")
         arguments = self.get_arguments(kwargs, for_search=False)
         values = [argument.lookups[0].value for argument in arguments.values()] + [docid]
         stmt = []
         for f in arguments:
             stmt.append("%s=?" % f)
-        sql = "update %s set %s where id=?" % (self.schema.name, ",".join(stmt))
+        sql = "update %s set %s where %s=?" % (self.schema.name, ",".join(stmt),id_field)
         logger.debug(sql)
         self.cursor.execute(sql, values)
-        self.write_buffer = self.write_buffer + 1
-        self.commit()
+        #self.commit()
 
     def delete(self, rowid):
         '''
@@ -1607,11 +1715,11 @@ class PocketSearch:
         the rowid is not found, no deletion is done and no error is thrown.
         '''
         self.assure_writeable()
-        sql = "delete from %s where id = ?" % (self.schema.name)
+        id_field = self.schema.get_id_field() or "id"
+        sql = "delete from %s where %s = ?" % (self.schema.name,id_field)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
-        self.write_buffer = self.write_buffer + 1
-        self.commit()
+        #self.commit()
 
     def delete_all(self):
         '''
@@ -1621,7 +1729,7 @@ class PocketSearch:
         sql = "delete from %s" % self.schema.name
         logger.debug(sql)
         self.cursor.execute(sql)
-        self.commit()
+        #self.commit()
 
     def autocomplete(self,*args,**kwargs):
         '''
@@ -1658,8 +1766,23 @@ class PocketSearch:
 
     def suggest(self,query):
         if self.schema._meta.spell_check:
-            return self._get_or_create_spellchecker_instance().suggest(query)
+            return self.spell_checker().suggest(query)
         raise Query.QueryError("Spell checks are not supported in this index.")
+
+    def _clear_kwargs(self,kwargs):
+        cleared_kwargs = {}
+        for k, v in kwargs.items():
+            if isinstance(v,str):
+                if len(v)>0:
+                    cleared_kwargs[k]=v
+                else:
+                    cleared_kwargs[k]='""'
+            else:
+                if v is not None:
+                    cleared_kwargs[k]=v
+                else:
+                    cleared_kwargs[k]='""'
+        return cleared_kwargs
 
     def search(self, *args, **kwargs):
         '''
@@ -1667,11 +1790,13 @@ class PocketSearch:
         '''
         if len(args)>0 and len(kwargs)>0:
             raise Query.QueryError("Cannot mix Q objects and keyword arguments.")
+        # check for empty kwargs
+        cleared_kwargs = self._clear_kwargs(kwargs)
         if len(args)>0:
             for q_expr in args[0]:
-                q_expr.arguments = self.get_arguments(q_expr.kwargs)
+                q_expr.arguments = self.get_arguments(self._clear_kwargs(q_expr.kwargs))
             return Query(search_instance=self,arguments=[],q_arguments=args[0])
-        arguments = self.get_arguments(kwargs)
+        arguments = self.get_arguments(cleared_kwargs)
         return Query(search_instance=self, arguments=arguments,q_arguments=[])
 
 
@@ -1730,4 +1855,70 @@ class FileSystemReader(IndexReader):
                         with open(file_path, 'r',encoding=self.encoding) as file:
                             yield(self.file_to_dict(file_path, file))
 
+class ConnectionPool:
+    '''
+    Managing a connection pool for pocket search instances and 
+    assuring that only one thread writes to a pocket search instance 
+    at a given time.
+    '''
+
+    POOL_MAX_DATABASES = 150
+    POOL_CONNECTION_TIMEOUT = 5
+
+    class ConnectionError(Exception):
+        '''
+        Raised, if no connection could be acquired
+        '''
+
+    def __init__(self):
+        self.connections = {}
+        self.dict_lock = threading.Semaphore(10)
+
+    def _open(self,db_name):
+        if db_name is None:
+            logger.debug("Opening connection to in-memory db")
+            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        else:
+            logger.debug("Opening connection to db %s" % db_name)
+            connection = sqlite3.connect(db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def get_connection(self,db_name,writeable):
+        '''
+        Acquire a new connection and raise an exception if none is available
+        '''
+        
+        if writeable:
+            logger.debug("Acquiring dict lock.")
+            with self.dict_lock:
+                if not db_name in self.connections:
+                    if len(self.connections) > self.POOL_MAX_DATABASES:
+                        raise self.ConnectionError("Too many databases in connection pool.")
+                    logger.debug(f"Setting up pool for {db_name}")
+                    self.connections[db_name]={"writer":threading.Semaphore(1)}     
+            logger.debug("Acquiring writer.") 
+            if not(self.connections[db_name]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
+                raise self.ConnectionError("Unable to acquire pocketsearch writer (Timed out)")
+        return self._open(db_name)
+
+    def release_connection(self, db_name , connection, writeable):
+        '''
+        Release the given connection
+        '''
+        if not self._is_valid_connection(connection):
+            connection.close()
+        if writeable:
+            logger.debug("Writer released")
+            self.connections[db_name]["writer"].release()
+        
+    def _is_valid_connection(self, connection):
+        try:
+            connection.execute("SELECT 1;")
+            return True
+        except sqlite3.OperationalError:
+            return False
+
+
+connection_pool = ConnectionPool()
 

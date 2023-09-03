@@ -23,9 +23,21 @@ class FileContents(Schema):
 
 Following options are available:
 
-* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e** and **a** respectivley )from characters. If you want to keep diacritics, set to "0".
-* **categories** - defines characters that are NOT separation characters through unicode categories.
+* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e** and **a** respectivley) from characters. If you want to keep diacritics, set this option to "0".
+* **categories** - defines characters that are **NOT** separation characters through unicode categories.[unicodeplus.com](https://unicodeplus.com/category) has a list of available categories.
 * **separators** - define additional characters that should be considered as separation characters.
+* **tokenchars** - allows you to define additional characters that should not be considered as separators.
+
+Here are some examples:
+
+```Python
+# Treat X, Y and Z as separators:
+Unicode61(separators="XYZ")
+# This configuration only allows numbers as tokens any other characters are treated as separators
+Unicode61(categories="N*")
+# Add @ as valid character inside of a token (normally it would be treated as separator)
+Unicode61(tokenchars="@")
+```
 
 Please consult [the chapter on tokenization](https://www.sqlite.org/fts5.html#unicode61_tokenizer) in FTS5 to gain a deeper 
 understanding on how the categories and separators option can be used.
@@ -55,7 +67,7 @@ list(pocket_search.tokens())
 {'token': 'paris', 'num_documents': 1, 'total_count': 1}]
 ```
 
-* **token represents** the actual token that is stored in the index.
+* **token** represents the actual token that is stored in the index.
 * **num_documents** represents the number of documents where the token occurs at least one time.
 * **total_count** is the total number of occurrences in the index.
 

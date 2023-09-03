@@ -20,16 +20,19 @@ class Example(Schema):
 
 ```
 
-Any field of type **Text** where index is set to True will be considered for spellchecking.
-
-A separate search index is built behind the curtains once the connection is closed:
+A spell checking dicitionary is built based on fields where index is set to True.
 
 ```Python
 import pocketsearch
 
 with pocketsearch.PocketWriter(schema=Example,db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(title="Hello",body="World",category="Default")
+    # Build spell checking dictionary:
+    pocketwriter.spell_checker().build()
 ```
+
+The spell checking dictionary is always built from scratch (thus any previous entries are deleted) when 
+the .build method is invoked.
 
 ## Using spellchecking
 
@@ -62,16 +65,13 @@ pocket_reader.suggest("hllo wrld")
 
 Spellchecking is done as follows:
 
-* A separate pocketsearch instance is hold in the background 
-* The token table of the original pocketsearch instance is scanned and tokens are divided into bigrams
-* Bigrams are stored in the spellchecker index
-* .suggest tokenizes the query and splits each token into bigram.
-* . suggest will then search the bigrams order them by rank and additionally calculate the [Levensthein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) for the top 10 suggestions.
+* A separate pocketsearch instance is built in the background 
+* The token table of the original pocketsearch instance is scanned and tokens are divided into [bigrams](https://en.wikipedia.org/wiki/Bigram)
+* Bigrams are stored in the spellchecker dictionary
+* .suggest tokenizes the query and splits each token into bigrams
+* . suggest will then search the bigrams order them by rank and additionally calculate the [Levensthein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) retrieving top 10 suggestions.
 
-## Limitations
 
-* Currently the spell checking index is entirely rebuilt when inserting, updating or 
-deleting data.
 
 
 
