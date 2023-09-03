@@ -217,16 +217,17 @@ so the first execution may take some time depending on the size of the table.
 
 ## Schema migrations
 
-PocketSearch does not provide means to update an existing schema, thus adding or removing fields. 
-If you want to change the definition of a schema, it is suggested to create a new schema class, add the fields and copy the 
-contents from the old schema to the new schema:
+PocketSearch does not provide means to update an existing schema, thus adding or removing fields. Having said that, you can create 
+migrate contents if the structure of a schema changes. 
+
+Assume we have following schema that already contains data:
 
 ```Python
 class Article(Schema):
     body=Text(index=True)
 ```
 
-Assuming you have already inserted data, you could now change your schema by adding a field:
+We now update the definition and add a title field:
 
 ```Python
 class Article(Schema):
@@ -234,7 +235,7 @@ class Article(Schema):
     body=Text(index=True)
 ```
 
-We now create a new index and copy all existing data to the new index:
+Using the **index_name** option, we copy the contents from the old index table to the new index table:
 
 ```Python
 with PocketReader(index_name="document",db_name="legacy.db",schema=self.Article) as reader:

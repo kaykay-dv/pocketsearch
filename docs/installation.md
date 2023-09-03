@@ -6,3 +6,5 @@ Run
 pip install pocketsearch
 ```
 
+to install the latest version. 
+
