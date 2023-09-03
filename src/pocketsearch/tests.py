@@ -969,6 +969,16 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(len(list(pocket_search.tokens())),1)
         pocket_search.close()
 
+    def test_token_chars(self):
+        '''
+        Test additional token chars.
+        '''
+        under_test = "A more: \\complex ':-)' example for tokenization@test.test (using emoticons.)"
+        self.SchemaDiacritics.Meta.tokenizer = Unicode61(tokenchars="@")        
+        pocket_search = PocketSearch(schema=self.SchemaDiacritics)
+        pocket_search.insert(text=under_test)
+        self.assertEqual(pocket_search.search(text="tokenization@test.test").count(),1)
+
 class CharacterTest(unittest.TestCase):
     '''
     Tokenization-related tests

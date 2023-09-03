@@ -585,7 +585,7 @@ LOOKUPS = {
 
 }
 
-FTS_OPERATORS = ["-", ".","#","NEAR"]
+FTS_OPERATORS = ["-", ".","#","NEAR","@"]
 
 class Filter(SQLQueryComponent):
     '''
