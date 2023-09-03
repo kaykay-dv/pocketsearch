@@ -67,7 +67,7 @@ list(pocket_search.tokens())
 {'token': 'paris', 'num_documents': 1, 'total_count': 1}]
 ```
 
-* **token represents** the actual token that is stored in the index.
+* **token** represents the actual token that is stored in the index.
 * **num_documents** represents the number of documents where the token occurs at least one time.
 * **total_count** is the total number of occurrences in the index.
 
