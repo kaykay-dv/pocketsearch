@@ -217,7 +217,7 @@ so the first execution may take some time depending on the size of the table.
 
 ## Schema migrations
 
-PocketSearch does not provide means to update an existing schema, thus adding or removing fields. Having said that, you can create 
+PocketSearch does not provide means to update an existing schema, thus adding or removing fields. Having said that, you can  
 migrate contents if the structure of a schema changes. 
 
 Assume we have following schema that already contains data:
