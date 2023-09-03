@@ -23,8 +23,8 @@ class FileContents(Schema):
 
 Following options are available:
 
-* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e** and **a** respectivley )from characters. If you want to keep diacritics, set to "0".
-* **categories** - defines characters that are NOT separation characters through unicode categories.
+* **remove_diacritics** - default is "2" - By default the tokenizer removes all diacritics (e.g. characters as **è** or **ä** become **e** and **a** respectivley) from characters. If you want to keep diacritics, set this option to "0".
+* **categories** - defines characters that are **NOT** separation characters through unicode categories.[unicodeplus.com](https://unicodeplus.com/category) has a list of available categories.
 * **separators** - define additional characters that should be considered as separation characters.
 
 Please consult [the chapter on tokenization](https://www.sqlite.org/fts5.html#unicode61_tokenizer) in FTS5 to gain a deeper 
