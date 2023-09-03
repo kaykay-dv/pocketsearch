@@ -21,8 +21,6 @@ It provides
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 3.9, 3.10 and 3.11.
 
-
-
 .. toctree::
    :maxdepth: 2
 
