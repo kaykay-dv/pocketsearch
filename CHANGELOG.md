@@ -2,6 +2,7 @@
 
 ## Version 0.20.1
 * Small changes to README - now includes gettings started examples
+* Added Python 3.12 to list of supported Python versions
 
 ## Version 0.20.0
 * Added connection pool class and made PocketWriter instances thread-safe (https://github.com/kaykay-dv/pocketsearch/issues/44)
