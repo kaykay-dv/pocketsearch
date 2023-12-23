@@ -20,6 +20,26 @@ Install using PIP:
 pip install pocketsearch
 ```
 
+to install the package.
+
+Create an search index using a PocketWriter and store it to my_db.db:
+
+```Python
+import pocketsearch
+with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
+    pocket_writer.insert(text="Hello world")
+```
+
+Open a search index using a PocketReader:
+
+```Python
+import pocketsearch
+with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
+    for result in pocket_reader.search(text="Hello world"):
+        print(result.text)
+```
+
+Read the complete documentation at https://pocketsearch.readthedocs.io/
 
 
 # Status
@@ -30,37 +50,6 @@ The package is currently in Beta status.
 ![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/pocketsearch/badge/?version=latest)](https://pocketsearch.readthedocs.io/en/latest/?badge=latest)
 
-# Getting started
 
-Run 
-
-```Shell
-pip install pocketsearch
-```
-
-to install the package.
-
-Create an search index using a PocketWriter and store it to my_db.db:
-
-```Python
-from pocketsearch import PocketWriter
-with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
-    pocket_writer.insert(text="Hello world")
-```
-
-Open a search index using a PocketReader:
-
-```Python
-from pocketsearch import PocketReader
-with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
-    for result in pocket_reader.search(text="Hello world"):
-        print(result.text)
-```
-
-
-
-# Documentation
-
-Documentation can be found at https://pocketsearch.readthedocs.io/
 
 
