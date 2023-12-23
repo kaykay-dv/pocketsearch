@@ -25,7 +25,7 @@ to install the package.
 Create an search index using a PocketWriter and store it to my_db.db:
 
 ```Python
-from pocketsearch import PocketWriter
+import pocketsearch
 with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
@@ -33,7 +33,7 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
 Open a search index using a PocketReader:
 
 ```Python
-from pocketsearch import PocketReader
+import pocketsearch
 with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
     for result in pocket_reader.search(text="Hello world"):
         print(result.text)
