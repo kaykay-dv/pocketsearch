@@ -12,6 +12,16 @@ pocketsearch is a pure-Python full text indexing search library based on sqlite 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
 3.9, 3.10 and Python 3.11.
 
+# Quick start
+
+Install using PIP:
+
+```Shell
+pip install pocketsearch
+```
+
+
+
 # Status
 The package is currently in Beta status.
 
@@ -20,7 +30,7 @@ The package is currently in Beta status.
 ![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/pocketsearch/badge/?version=latest)](https://pocketsearch.readthedocs.io/en/latest/?badge=latest)
 
-# Installation
+# Getting started
 
 Run 
 
@@ -29,6 +39,25 @@ pip install pocketsearch
 ```
 
 to install the package.
+
+Create an search index using a PocketWriter and store it to my_db.db:
+
+```Python
+from pocketsearch import PocketWriter
+with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
+    pocket_writer.insert(text="Hello world")
+```
+
+Open a search index using a PocketReader:
+
+```Python
+from pocketsearch import PocketReader
+with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
+    for result in pocket_reader.search(text="Hello world"):
+        print(result.text)
+```
+
+
 
 # Documentation
 
