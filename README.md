@@ -20,24 +20,6 @@ Install using PIP:
 pip install pocketsearch
 ```
 
-
-
-# Status
-The package is currently in Beta status.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)
-![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
-[![Documentation Status](https://readthedocs.org/projects/pocketsearch/badge/?version=latest)](https://pocketsearch.readthedocs.io/en/latest/?badge=latest)
-
-# Getting started
-
-Run 
-
-```Shell
-pip install pocketsearch
-```
-
 to install the package.
 
 Create an search index using a PocketWriter and store it to my_db.db:
@@ -57,10 +39,17 @@ with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
         print(result.text)
 ```
 
+Read the complete documentation at https://pocketsearch.readthedocs.io/
 
 
-# Documentation
+# Status
+The package is currently in Beta status.
 
-Documentation can be found at https://pocketsearch.readthedocs.io/
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)
+![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
+[![Documentation Status](https://readthedocs.org/projects/pocketsearch/badge/?version=latest)](https://pocketsearch.readthedocs.io/en/latest/?badge=latest)
+
+
 
 
