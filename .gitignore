@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 
 data
+coverage.svg
+.token
+.vscode
 
 .DS_Store
 
