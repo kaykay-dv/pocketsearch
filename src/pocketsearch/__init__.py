@@ -122,29 +122,64 @@ class Unicode61(Tokenizer):
         self.add_property("tokenchars",tokenchars)
         self.add_property("separators",separators)
 
-    def tokenize(self,input_str):
+    def is_tokenchar(self,character):
+        '''
+        Test if the given character is a token character (True) or 
+        separator (False)
+        '''
+        categories = self.properties.get("categories").value.split()
+        if "tokenchars" in self.properties:
+            tokenchars = self.properties["tokenchars"].value.split()
+        else:
+            tokenchars = [] 
+        additional_separators = self.properties.get("separators")
+        if additional_separators is not None:
+            if character in additional_separators.value:
+                return False
+        if character in tokenchars:
+            return True
+        ch_category = unicodedata.category(character)
+        if ch_category in categories or ch_category[0]+"*" in categories:
+            return True
+        else:
+            return False
+
+    def tokenize(self,input_str,keep=[],quote=False):
         '''
         Based on the settings of unicode61 tokenizer given, split the 
         input_str into individual tokens and return them as a list of 
         tokens.
+        You can provide additional characters to be considered as tokens 
+        in the keep arguments. 
+        When quote is set to True, tokens containing punctuation will be 
+        automatically quoted.
         '''
         categories = self.properties.get("categories").value.split(" ")
         additional_separators = self.properties.get("separators")
         output_str=""
         for character in input_str:
-            if additional_separators is not None:
-                if character in additional_separators.value:
-                    output_str+=" "
-                    continue
-            ch_category = unicodedata.category(character)
-            if ch_category in categories or ch_category[0]+"*" in categories:
-                # regular token
+            if character in keep:
                 output_str+=character
+                continue
             else:
-                # separator
-                output_str+=" "
+                if self.is_tokenchar(character):
+                    output_str+=character
+                else:
+                    output_str+=" "
         return [ch for ch in output_str.split(" ") if len(ch)>0]
-            
+        #tokens = []
+        #for token in [ch for ch in output_str.split(" ") if len(ch)>0]:
+        #    quote=False
+        #    for ch in token:#
+        #
+        #        if not(self.is_tokenchar(ch)) and ch not in keep:
+        #            quote=True
+        #            break
+        #    if quote:
+        #        tokens.append(f'"{token}"')
+        #    else:
+        #        tokens.append(token)
+        return tokens
 
 class Field(abc.ABC):
     '''
@@ -601,16 +636,17 @@ class Filter(SQLQueryComponent):
         self.field = field
         self.value = value
         self.keywords = []
-        self.operators = copy.copy(FTS_OPERATORS)
-        if not(LU_BOOL in lookup.names):
-            self.keywords = self.keywords + ["AND", "OR"]
-        if not(LU_NEG in lookup.names):
-            self.keywords.append("NOT")
-        if not(LU_PREFIX in lookup.names):
+        self.operators = ['"']
+        if LU_PREFIX in lookup.names:
             self.operators.append("*")
-        if not(LU_INITIAL_TOKEN in lookup.names):
+        if LU_INITIAL_TOKEN in lookup.names:
             self.operators.append("^")
-
+        if (LU_BOOL in lookup.names):
+            self.keywords = self.keywords + ["AND", "OR"]
+            self.operators.append("(")
+            self.operators.append(")")
+        if (LU_NEG in lookup.names):
+            self.keywords.append("NOT")
 
 class MatchFilter(Filter):
     '''
@@ -618,19 +654,33 @@ class MatchFilter(Filter):
     '''
 
     def _escape(self, value):
-        for v in self.keywords:
-            # if one of the keywords have been found
-            # we can abort and quote the entire value
-            if value.find(v) != -1:
-                return value.replace(v, '"%s"' % v)
-        for ch in self.operators:
-            if ch in value:
-                return value.replace(value, '"%s"' % value)
-        return value
+        tokens_1 = self.sql_query.search_instance.schema._meta.tokenizer.tokenize(value,
+                                                                                keep=self.operators,
+                                                                                quote=True)
+        tokens=[]
+        multiple_token_quote=False
+        for token in tokens_1:
+            quote=True
+            if token.startswith('"'):
+                multiple_token_quote=True
+            if token.endswith('"'):
+                multiple_token_quote=False
+            if token in self.keywords:
+                quote=False
+            for operator in self.operators:
+                if operator in token:
+                    quote=False
+            if quote and not(multiple_token_quote):
+                tokens.append(f'"{token}"')
+            else:
+                tokens.append(token)
+        if len(tokens)==0:
+            return '""'
+        print(tokens)
+        return " ".join(tokens)
 
     def to_sql(self):
         v = "%s:%s" % (self.field.name,self._escape(self.value))
-        #self.sql_query.add_value(v)
         return v
 
 
@@ -989,7 +1039,7 @@ class Query:
 
     def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
-        id_field = self.search_instance.schema.get_id_field() or "id"        
+        id_field = self.search_instance.schema.get_id_field() or "id"   
         self.arguments = arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         self.unions = []
@@ -1333,22 +1383,31 @@ class PocketSearch:
         self.schema = schema(index_name)
         self.db_name = db_name
         self.db_id = uuid.uuid4()
-        self.writeable = writeable
-        self.index_name = index_name
-        if connection is None:
-            self.connection = self._open()
-        else:
-            self.connection = connection
-            logger.debug("Re-using existing database connection %s" % connection)            
-        self.cursor = self.connection.cursor()        
+        self.connection = None
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
-            self.writeable = True
-            self._create_table(self.schema.name)
-        if self.schema._meta.spell_check:
-            self._spell_checker = SpellChecker(search_instance=self)
+            self.writeable = True      
         else:
-            self._spell_checker = None
+            self.writeable = False
+        self.index_name = index_name
+        try:
+            if connection is None:
+                self.connection = self._open()
+            else:
+                self.connection = connection
+                logger.debug("Re-using existing database connection %s" % connection)            
+            self.cursor = self.connection.cursor()        
+            if self.writeable:
+                self._create_table(self.schema.name)
+            if self.schema._meta.spell_check:
+                self._spell_checker = SpellChecker(search_instance=self)
+            else:
+                self._spell_checker = None
+        except:
+            # so if setting up the object instance fails, close the connection
+            # and re-raise the exception
+            self.close()
+            raise
 
     def spell_checker(self):
         '''
@@ -1364,14 +1423,9 @@ class PocketSearch:
         return self.db_name
 
     def _open(self):
-        #if self.db_name is None:
-        #    logger.debug("Opening connection to in-memory db")
-        #    connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        #else:
-        #    logger.debug("Opening connection to db %s" % self.db_name)
-        #    connection = sqlite3.connect(self.db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        #connection.row_factory = sqlite3.Row
-        return connection_pool.get_connection(db_name=self.db_name,writeable=self.writeable)
+        return connection_pool.get_connection(db_name=self.db_name,
+                                              writeable=self.writeable,
+                                              conn_id=self.db_id)
 
 
     def _close(self):
@@ -1379,7 +1433,10 @@ class PocketSearch:
             if self.writeable:
                 self.commit()
             logger.debug("Closing connection")
-            connection_pool.release_connection(self.db_name,self.connection,self.writeable)
+            connection_pool.release_connection(self.db_name,
+                                               self.connection,
+                                               self.writeable,
+                                               conn_id=self.db_id)
 
     # For backwards compatibility reasons:
     close = _close
@@ -1396,8 +1453,8 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
-        logger.debug("sql=%s,args=%s" % (sql,args))
-        return self.cursor.execute(sql, args)
+        logger.debug("sql=%s,args=%s" % (f"{sql}",args))
+        return self.cursor.execute(f"{sql}", args)
 
     def _populate_fts(self):
         '''
@@ -1758,7 +1815,7 @@ class PocketSearch:
         else:
             prefix="*"
         query_components[0]="(^{first_word}{prefix} OR {first_word}{prefix})".format(first_word=query_components[0],
-                                                                                        prefix=prefix)
+                                                                                     prefix=prefix)
         if len(query_components)>1:
             query_components[len(query_components)-1]=query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
@@ -1786,7 +1843,7 @@ class PocketSearch:
 
     def search(self, *args, **kwargs):
         '''
-        Searches the index. Keyword arguments must correspond to
+        Initiate search in index
         '''
         if len(args)>0 and len(kwargs)>0:
             raise Query.QueryError("Cannot mix Q objects and keyword arguments.")
@@ -1828,6 +1885,17 @@ class FileSystemReader(IndexReader):
     '''
 
     encoding = "utf-8"
+
+    class FSSchema(Schema):
+        '''
+        Schema used by the index reader
+        '''
+
+        class Meta:
+            spell_check = True
+
+        filename = Text(is_id_field=True)
+        text = Text(index=True)
 
     def __init__(self, base_dir="./", file_extensions=None,**kwargs):
         if file_extensions is None:
@@ -1884,33 +1952,36 @@ class ConnectionPool:
         connection.row_factory = sqlite3.Row
         return connection
 
-    def get_connection(self,db_name,writeable):
+    def get_connection(self,db_name,writeable,conn_id=None):
         '''
         Acquire a new connection and raise an exception if none is available
         '''
-        
+        if db_name is not None:
+            conn_id = db_name
         if writeable:
             logger.debug("Acquiring dict lock.")
             with self.dict_lock:
-                if not db_name in self.connections:
+                if not conn_id in self.connections:
                     if len(self.connections) > self.POOL_MAX_DATABASES:
                         raise self.ConnectionError("Too many databases in connection pool.")
-                    logger.debug(f"Setting up pool for {db_name}")
-                    self.connections[db_name]={"writer":threading.Semaphore(1)}     
+                    logger.debug(f"Setting up pool for {conn_id}")
+                    self.connections[conn_id]={"writer":threading.Semaphore(1)}     
             logger.debug("Acquiring writer.") 
-            if not(self.connections[db_name]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
-                raise self.ConnectionError("Unable to acquire pocketsearch writer (Timed out)")
+            if not(self.connections[conn_id]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
+                raise self.ConnectionError(f"Unable to acquire pocketsearch writer (Timed out) for {conn_id}")
         return self._open(db_name)
 
-    def release_connection(self, db_name , connection, writeable):
+    def release_connection(self, db_name , connection, writeable,conn_id=None):
         '''
         Release the given connection
         '''
+        if db_name is not None:
+            conn_id = db_name        
         if not self._is_valid_connection(connection):
             connection.close()
         if writeable:
             logger.debug("Writer released")
-            self.connections[db_name]["writer"].release()
+            self.connections[conn_id]["writer"].release()
         
     def _is_valid_connection(self, connection):
         try:

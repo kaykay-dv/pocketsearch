@@ -326,12 +326,14 @@ class PrefixIndexTest(unittest.TestCase):
         '''
         Test creation of prefix index
         '''
-        PocketSearch(schema=self.PrefixIndex1)
+        p = PocketSearch(schema=self.PrefixIndex1)
+        p.close()
         with self.assertRaises(Schema.SchemaError):
             PocketSearch(schema=self.PrefixIndex2)
         with self.assertRaises(Schema.SchemaError):            
             PocketSearch(schema=self.PrefixIndex3)
-        PocketSearch(schema=self.PrefixIndex4)
+        p = PocketSearch(schema=self.PrefixIndex4)
+        p.close()
         with self.assertRaises(Schema.SchemaError):
             PocketSearch(schema=self.PrefixIndex6)
 
@@ -753,6 +755,22 @@ class IndexUpdateTests(BaseTest):
     #    self.assertEqual(pocket_search.search().count(),3)
     #    # now the write buffer should be set back to 0
     #    self.assertEqual(pocket_search.write_buffer,0)
+
+class EscapeTests(unittest.TestCase):
+
+    def test_escape_characters(self):
+        '''
+        Test the proper handling of punctuation in queries. 
+        '''
+        pocket_search = PocketSearch(writeable=True)
+        pocket_search.insert(text="Hello")
+        pocket_search.insert(text="World")
+        pocket_search.insert(text="Hello World!")
+        pocket_search.insert(text="World Hello")
+        # in this case, punctuation characters are automatically removed from the query:
+        self.assertEqual(pocket_search.search(text='hello $ !').count(),3)
+        # however double quotes are kept to make phrase query possible
+        self.assertEqual(pocket_search.search(text='"Hello World"').count(),1)
 
 class AutocompleteTest(unittest.TestCase):
     '''
