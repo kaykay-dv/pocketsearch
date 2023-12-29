@@ -154,8 +154,6 @@ class Unicode61(Tokenizer):
         When quote is set to True, tokens containing punctuation will be 
         automatically quoted.
         '''
-        categories = self.properties.get("categories").value.split(" ")
-        additional_separators = self.properties.get("separators")
         output_str=""
         for character in input_str:
             if character in keep:
@@ -167,19 +165,6 @@ class Unicode61(Tokenizer):
                 else:
                     output_str+=" "
         return [ch for ch in output_str.split(" ") if len(ch)>0]
-        #tokens = []
-        #for token in [ch for ch in output_str.split(" ") if len(ch)>0]:
-        #    quote=False
-        #    for ch in token:#
-        #
-        #        if not(self.is_tokenchar(ch)) and ch not in keep:
-        #            quote=True
-        #            break
-        #    if quote:
-        #        tokens.append(f'"{token}"')
-        #    else:
-        #        tokens.append(token)
-        return tokens
 
 class Field(abc.ABC):
     '''
