@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import threading
+import datetime
 import sqlite3
 import collections
 import unicodedata
@@ -19,6 +20,21 @@ import uuid
 import logging
 
 logger = logging.getLogger(__name__)
+
+def convert_timestamp(value):
+    '''
+    Convert native sqlite timestamp value to datetime object
+    '''
+    return datetime.datetime.strptime(value.decode("utf-8").split(".")[0], "%Y-%m-%d %H:%M:%S")
+
+def convert_date(value):
+    '''
+    Convert native sqlite date value to datetime object
+    '''    
+    return datetime.datetime.strptime(value.decode("utf-8"),"%Y-%m-%d").date()
+
+sqlite3.register_converter('timestamp', convert_timestamp)
+sqlite3.register_converter('date', convert_date)
 
 class Timer:
     '''
@@ -144,7 +160,7 @@ class Unicode61(Tokenizer):
         else:
             return False
 
-    def tokenize(self,input_str,keep=[],quote=False):
+    def tokenize(self,input_str,keep=[]):
         '''
         Based on the settings of unicode61 tokenizer given, split the 
         input_str into individual tokens and return them as a list of 
@@ -640,8 +656,7 @@ class MatchFilter(Filter):
 
     def _escape(self, value):
         tokens_1 = self.sql_query.search_instance.schema._meta.tokenizer.tokenize(value,
-                                                                                keep=self.operators,
-                                                                                quote=True)
+                                                                                keep=self.operators)
         tokens=[]
         multiple_token_quote=False
         for token in tokens_1:
@@ -1932,7 +1947,7 @@ class ConnectionPool:
             logger.debug("Opening connection to in-memory db")
             connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         else:
-            logger.debug("Opening connection to db %s" % db_name)
+            logger.debug("Opening connection to db %s" , db_name)
             connection = sqlite3.connect(db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         connection.row_factory = sqlite3.Row
         return connection

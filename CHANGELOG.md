@@ -1,5 +1,10 @@
 # Change log
 
+## Version 0.21.0
+* Added support for having multiple in-memory databases (https://github.com/kaykay-dv/pocketsearch/issues/54)
+* Added more stable support when using punctuation characters in queries (https://github.com/kaykay-dv/pocketsearch/issues/55)
+* Code clean up
+
 ## Version 0.20.1
 * Small changes to README - now includes gettings started examples
 * Added Python 3.12 to list of supported Python versions
