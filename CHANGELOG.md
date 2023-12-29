@@ -1,10 +1,13 @@
 # Change log
 
 ## Version 0.21.0
-* Added support for having multiple in-memory databases (https://github.com/kaykay-dv/pocketsearch/issues/54)
+* Added support for having multiple connections to in-memory databases (https://github.com/kaykay-dv/pocketsearch/issues/54)
 * Added more stable support when using punctuation characters in queries (https://github.com/kaykay-dv/pocketsearch/issues/55)
-* Added custom timestamp and date converters for sqlite date/timestamp data types to address Python 3.12 deprecation warning
+* Added custom timestamp and date converters for sqlite date/timestamp data types to address Python 3.12 deprecation warning (https://github.com/kaykay-dv/pocketsearch/issues/52)
 * Code clean up
+
+**Breaking changes**
+* Versions < 0.21 did not support multiple in-memory databases. The second in-memory database trying to establish a connection (with the first one still holding an active connection) would run into a connection time out.
 
 ## Version 0.20.1
 * Small changes to README - now includes gettings started examples
