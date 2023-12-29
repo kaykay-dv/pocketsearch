@@ -1563,6 +1563,26 @@ class ConnectionPoolTest(unittest.TestCase):
     def setUp(self):
         connection_pool.connections.clear()
 
+    def test_multiple_in_memory_databases(self):
+        '''
+        It should be possible to open 3 pocketsearch 
+        objects in memory that should not interfere 
+        with each other
+        '''
+        p1 = PocketSearch()
+        p1.insert(text="p1")
+        p2 = PocketSearch()
+        p2.insert(text="p2")
+        p3 = PocketSearch()
+        p3.insert(text="p3")
+        p3.insert(text="p3")
+        self.assertEqual(p1.search().count(),1)
+        self.assertEqual(p2.search().count(),1)
+        self.assertEqual(p3.search().count(),2)
+        p1.close()
+        p2.close()
+        p3.close()
+
     def test_no_connection_available(self):
         '''
         We use two PocketSearch instances with the first one 
