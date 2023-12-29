@@ -1,2 +1,0 @@
-psutils
-matplotlib
