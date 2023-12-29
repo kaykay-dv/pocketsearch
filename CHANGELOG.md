@@ -3,6 +3,7 @@
 ## Version 0.21.0
 * Added support for having multiple in-memory databases (https://github.com/kaykay-dv/pocketsearch/issues/54)
 * Added more stable support when using punctuation characters in queries (https://github.com/kaykay-dv/pocketsearch/issues/55)
+* Added custom timestamp and date converters for sqlite date/timestamp data types to address Python 3.12 deprecation warning
 * Code clean up
 
 ## Version 0.20.1
