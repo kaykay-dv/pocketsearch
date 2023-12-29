@@ -676,7 +676,6 @@ class MatchFilter(Filter):
                 tokens.append(token)
         if len(tokens)==0:
             return '""'
-        print(tokens)
         return " ".join(tokens)
 
     def to_sql(self):
@@ -1602,7 +1601,7 @@ class PocketSearch:
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
         self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
         if table_exists:
-            if not(managed):
+            if not managed:
                 # Index existing data, this will be executed only once
                 sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {fts_fields} FROM {index_name}"
                 logger.debug(sql_index_data)
@@ -1620,11 +1619,14 @@ class PocketSearch:
         '''
         Return token statistics on the current index
         '''
-        sql = "select term as token, doc as num_documents, cnt as total_count from %s_fts_v order by total_count desc" % self.index_name
+        sql = f"""select term as token, doc as num_documents, 
+        cnt as total_count from {self.index_name}_fts_v order by total_count desc"""
         self.cursor.execute(sql)
         row = self.cursor.fetchone()
         while row is not None:
-            yield {"token":row["token"],"num_documents":row["num_documents"],"total_count":row["total_count"]}
+            yield {"token":row["token"],
+                   "num_documents":row["num_documents"],
+                   "total_count":row["total_count"]}
             row = self.cursor.fetchone()
 
 
@@ -1641,22 +1643,22 @@ class PocketSearch:
             if comp[0] not in referenced_fields:
                 referenced_fields[comp[0]] = []
             if len(comp) > 1:
-                if not(for_search):
+                if not for_search:
                     raise self.FieldError("Lookups are not allowed in the context of inserts and updates")
                 referenced_fields[comp[0]].append(self.Lookup(comp[1:], kwargs[kwarg]))
             else:
                 referenced_fields[comp[0]].append(self.Lookup(["eq"], kwargs[kwarg]))
         for f, lookups in referenced_fields.items():
             if f not in self.schema.fields:
-                raise self.FieldError("Unknown field '%s' - it is not defined in the schema." % f)
+                raise self.FieldError(f"Unknown field '{f}' - it is not defined in the schema.")
             for lookup in lookups:
                 for name in lookup.names:
-                    if not(name) in LOOKUPS:
-                        raise self.FieldError("Unknown lookup: '%s' in field '%s'" % (name, f))
+                    if not name in LOOKUPS:
+                        raise self.FieldError(f"Unknown lookup: '{name}' in field '{f}'")
         arguments = {}
         for field in self.schema:
             if field.name not in referenced_fields and not(for_search) and field.name not in [id_field, "rank"]:
-                raise self.FieldError("Missing field '%s' in keyword arguments." % field.name)
+                raise self.FieldError(f"Missing field '{field.name}' in keyword arguments.")
             if field.name in referenced_fields:
                 arguments[field.name] = self.Argument(field, referenced_fields[field.name])
         return arguments
@@ -1669,13 +1671,14 @@ class PocketSearch:
         for elem in index_reader.read():
             self.insert_or_update(**elem)
 
-    def insert_or_update(self, *args, **kwargs):
+    def insert_or_update(self,**kwargs):
         '''
         Insert or updates a new document if it already exists.
         '''
         self.assure_writeable()
         if self.schema.id_field is None:
-            raise self.DatabaseError("No IDFIeld has been defined in the schema - cannot perform insert_or_update.")
+            raise self.DatabaseError("""No IDFIeld has been defined in the schema - 
+                                     cannot perform insert_or_update.""")
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
@@ -1794,7 +1797,8 @@ class PocketSearch:
         (thus, predicting what the rest of a word is a user types in).
         '''
         if len(args)>0:
-            raise Query.QueryError(".autocomplete expects exactly one keyword argument naming the field in the schema you want to search.")
+            raise Query.QueryError(""".autocomplete expects exactly one keyword argument 
+            naming the field in the schema you want to search.""")
         if len(kwargs)>1:
             raise Query.QueryError("Only one field can be searched through autocomplete.")
         if len(kwargs)==0:
@@ -1892,6 +1896,9 @@ class FileSystemReader(IndexReader):
         '''
 
         class Meta:
+            '''
+            FS Schema meta options
+            '''
             spell_check = True
 
         filename = Text(is_id_field=True)
@@ -1921,7 +1928,7 @@ class FileSystemReader(IndexReader):
                     if file.endswith(extension):
                         file_path = os.path.join(root, file)
                         with open(file_path, 'r',encoding=self.encoding) as file:
-                            yield(self.file_to_dict(file_path, file))
+                            yield self.file_to_dict(file_path, file)
 
 class ConnectionPool:
     '''
@@ -1945,7 +1952,8 @@ class ConnectionPool:
     def _open(self,db_name):
         if db_name is None:
             logger.debug("Opening connection to in-memory db")
-            connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+            connection = sqlite3.connect(":memory:", 
+                                         detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         else:
             logger.debug("Opening connection to db %s" , db_name)
             connection = sqlite3.connect(db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
@@ -1982,7 +1990,7 @@ class ConnectionPool:
         if writeable:
             logger.debug("Writer released")
             self.connections[conn_id]["writer"].release()
-        
+
     def _is_valid_connection(self, connection):
         try:
             connection.execute("SELECT 1;")
@@ -1992,4 +2000,3 @@ class ConnectionPool:
 
 
 connection_pool = ConnectionPool()
-
