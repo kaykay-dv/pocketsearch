@@ -10,7 +10,7 @@ pocketsearch is a pure-Python full text indexing search library based on sqlite 
 - Autocomplete features
 
 It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
-3.9, 3.10 and Python 3.11.
+3.9, 3.10, Python 3.11 and Python 3.12
 
 # Quick start
 
