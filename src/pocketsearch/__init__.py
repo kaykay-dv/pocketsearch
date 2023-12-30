@@ -21,20 +21,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def convert_timestamp(value):
     '''
     Convert native sqlite timestamp value to datetime object
     '''
     return datetime.datetime.strptime(value.decode("utf-8").split(".")[0], "%Y-%m-%d %H:%M:%S")
 
+
 def convert_date(value):
     '''
     Convert native sqlite date value to datetime object
-    '''    
-    return datetime.datetime.strptime(value.decode("utf-8"),"%Y-%m-%d").date()
+    '''
+    return datetime.datetime.strptime(value.decode("utf-8"), "%Y-%m-%d").date()
+
 
 sqlite3.register_converter('timestamp', convert_timestamp)
 sqlite3.register_converter('date', convert_date)
+
 
 class Timer:
     '''
@@ -73,7 +77,10 @@ class Timer:
         self.stop = time.time()
         self.snapshots = self.snapshots+1
         its = self.get_its()
-        out = "%s iterations %s it/s %s s elapsed %s%s" % (self.snapshots, its, round(self.stop-self.start, self.precision), more_info, " "*15)
+        out = "%s iterations %s it/s %s s elapsed %s%s" % (self.snapshots, its,
+                                                           round(self.stop-self.start,
+                                                                 self.precision),
+                                                           more_info, " "*15)
         print(out, end="\r", flush=True)
 
     def done(self):
@@ -86,11 +93,14 @@ class Timer:
         s = "----\n"
         longest_string, lap_time = max(self.laps, key=lambda x: len(x[0]))
         for lap_name, lap_time in self.laps:
-            lap_name_display = lap_name + (len(longest_string)-len(lap_name)) * " "
-            s = s+"%s %s s\n" % (lap_name_display, round(lap_time, self.precision))
+            lap_name_display = lap_name + \
+                (len(longest_string)-len(lap_name)) * " "
+            s = s+"%s %s s\n" % (lap_name_display,
+                                 round(lap_time, self.precision))
         s = s+"Total time: %s\n" % self.total_time
         s = s+"----\n"
         return s
+
 
 class Tokenizer(abc.ABC):
     '''
@@ -102,43 +112,52 @@ class Tokenizer(abc.ABC):
         Thrown if the initialization of the tokenizer fails
         '''
 
-    def __init__(self,name):
-        self.name=name
+    def __init__(self, name):
+        self.name = name
         self.properties = {}
 
-    def add_property(self,name,value):
+    def add_property(self, name, value):
+        '''
+        Add a property to the tokenizer
+        '''
         if value is not None:
-            self.properties[name] = self.Property(name,value)
+            self.properties[name] = self.Property(name, value)
 
     class Property:
+        '''
+        Property associated with tokenizer
+        '''
 
-        def __init__(self,name,value):
+        def __init__(self, name, value):
             self.name = name
             self.value = value
 
     def to_sql(self):
-        properties=" ".join(["%s '%s'" % (p.name,p.value) for p in self.properties.values()])
-        return "tokenize=\"{name} {properties}\"".format(name=self.name,properties=properties)
-    
+        properties = " ".join(["%s '%s'" % (p.name, p.value)
+                              for p in self.properties.values()])
+        return "tokenize=\"{name} {properties}\"".format(name=self.name, properties=properties)
+
+
 class Unicode61(Tokenizer):
     '''
     Unicode61 tokenizer (see https://www.sqlite.org/fts5.html for more details)
     '''
-    
-    VALID_DIACRITICS = ["0","1","2"]
 
-    def __init__(self,remove_diacritics="2",categories=None,tokenchars=None,separators=""):
+    VALID_DIACRITICS = ["0", "1", "2"]
+
+    def __init__(self, remove_diacritics="2", categories=None, tokenchars=None, separators=""):
         super().__init__("unicode61")
         if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
-            raise self.TokenizerError("Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
+            raise self.TokenizerError(
+                "Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
         self.add_property("remove_diacritics", remove_diacritics)
         if categories is None:
             categories = "L* N* Co"
-        self.add_property("categories",categories)
-        self.add_property("tokenchars",tokenchars)
-        self.add_property("separators",separators)
+        self.add_property("categories", categories)
+        self.add_property("tokenchars", tokenchars)
+        self.add_property("separators", separators)
 
-    def is_tokenchar(self,character):
+    def is_tokenchar(self, character):
         '''
         Test if the given character is a token character (True) or 
         separator (False)
@@ -147,7 +166,7 @@ class Unicode61(Tokenizer):
         if "tokenchars" in self.properties:
             tokenchars = self.properties["tokenchars"].value.split()
         else:
-            tokenchars = [] 
+            tokenchars = []
         additional_separators = self.properties.get("separators")
         if additional_separators is not None:
             if character in additional_separators.value:
@@ -155,12 +174,9 @@ class Unicode61(Tokenizer):
         if character in tokenchars:
             return True
         ch_category = unicodedata.category(character)
-        if ch_category in categories or ch_category[0]+"*" in categories:
-            return True
-        else:
-            return False
+        return ch_category in categories or ch_category[0]+"*" in categories
 
-    def tokenize(self,input_str,keep=[]):
+    def tokenize(self, input_str, keep=[]):
         '''
         Based on the settings of unicode61 tokenizer given, split the 
         input_str into individual tokens and return them as a list of 
@@ -170,17 +186,17 @@ class Unicode61(Tokenizer):
         When quote is set to True, tokens containing punctuation will be 
         automatically quoted.
         '''
-        output_str=""
+        output_str = ""
         for character in input_str:
             if character in keep:
-                output_str+=character
+                output_str += character
                 continue
+            if self.is_tokenchar(character):
+                output_str += character
             else:
-                if self.is_tokenchar(character):
-                    output_str+=character
-                else:
-                    output_str+=" "
-        return [ch for ch in output_str.split(" ") if len(ch)>0]
+                output_str += " "
+        return [ch for ch in output_str.split(" ") if len(ch) > 0]
+
 
 class Field(abc.ABC):
     '''
@@ -222,7 +238,8 @@ class Field(abc.ABC):
         Returns sql representation of field for SQL table generation.
         '''
         if self.data_type is None:
-            raise self.schema.SchemaError("class %s (field=%s) has no data_type set" % (self.__class__.__name__, self.name))
+            raise self.schema.SchemaError("class %s (field=%s) has no data_type set" % (
+                self.__class__.__name__, self.name))
         name = self.schema.reverse_lookup[self]
         if index_table:
             _data_type = ""
@@ -317,7 +334,7 @@ class Schema:
     A schema defines what fields can be searched in the search index.
     '''
 
-    #id = IdField()
+    # id = IdField()
     rank = Rank()
 
     class Meta:
@@ -337,8 +354,8 @@ class Schema:
         'QUERY', 'RAISE', 'RECURSIVE', 'REFERENCES', 'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT',
         'RIGHT', 'ROLLBACK', 'ROW', 'SAVEPOINT', 'SELECT', 'SET', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TO',
         'TRANSACTION', 'TRIGGER', 'UNION', 'UNIQUE', 'UPDATE', 'USING', 'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL', 'WHEN',
-        'WHERE', 'WITH', 'WITHOUT','NAME','FIELDS','FIELDS_INDEX','FIELDS_WITH_DEFAULT',
-        'REVERSE_LOOKUP','ID_FIELD'
+        'WHERE', 'WITH', 'WITHOUT', 'NAME', 'FIELDS', 'FIELDS_INDEX', 'FIELDS_WITH_DEFAULT',
+        'REVERSE_LOOKUP', 'ID_FIELD'
     ]
 
     class SchemaError(Exception):
@@ -354,58 +371,61 @@ class Schema:
         try:
             self._meta.tokenizer
         except AttributeError:
-            # FIXME: might have undesired 
-            # side effects / using another 
+            # FIXME: might have undesired
+            # side effects / using another
             # exception here?
             self._meta.tokenizer = Unicode61()
         try:
             self._meta.spell_check
         except AttributeError:
-            self._meta.spell_check=False
+            self._meta.spell_check = False
 
     def __init__(self, name):
         self._meta = self.Meta()
         self._set_meta_defaults()
         self.name = name
         self.fields = collections.OrderedDict()
-        self.field_index = {} # required by some SQL functions, e.g. highlight
+        self.field_index = {}  # required by some SQL functions, e.g. highlight
         self.fields_with_default = {}
         self.reverse_lookup = {}
         self.id_field = None
-        field_index=0
+        field_index = 0
         for elem in dir(self):
             # Create and store a (shallow) copy of the class variable
-            # in order to avoid any side effects. All schema classes 
-            # share the IDField and the RankField and both have 
+            # in order to avoid any side effects. All schema classes
+            # share the IDField and the RankField and both have
             # instance variable. If we would not have a copy of these
             # class-wide objects we run into scenarios (e.g. changing index)
-            # that would affect all schemas an application uses            
+            # that would affect all schemas an application uses
             obj = copy.copy(getattr(self, elem))
             if isinstance(obj, Field):
                 if obj.data_type is None:
-                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (obj.__class__.__name__, elem))
+                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (
+                        obj.__class__.__name__, elem))
                 if elem.startswith("_") or "__" in elem:
                     raise self.SchemaError(
                         "Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." %
                         elem)
                 if elem.upper() in self.RESERVED_KEYWORDS:
-                    raise self.SchemaError("'%s' is a reserved name - Please choose another name." % elem)
+                    raise self.SchemaError(
+                        "'%s' is a reserved name - Please choose another name." % elem)
                 self.fields[elem] = obj
                 self.fields[elem].schema = self
                 self.fields[elem].name = elem
                 self.reverse_lookup[obj] = elem
                 if obj.is_id_field:
                     if self.id_field is not None:
-                        raise self.SchemaError("You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
+                        raise self.SchemaError(
+                            "You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
                     self.id_field = obj.name
                 if obj.fts_enabled():
-                    self.field_index[obj.name]=field_index
-                    field_index+=1
-        if not(self.get_id_field()):
+                    self.field_index[obj.name] = field_index
+                    field_index += 1
+        if not self.get_id_field():
             obj = IdField()
-            obj.name="id"
+            obj.name = "id"
             self.fields["id"] = obj
-            self.fields["id"].schema=self
+            self.fields["id"].schema = self
             self.reverse_lookup[obj] = "id"
 
         for field in self:
@@ -423,8 +443,6 @@ class Schema:
                 return elem
         return None
 
-
-
     def get_field(self, field_name, raise_exception=False):
         '''
         Returns field object for the given field name. If raise_exception is set to True,
@@ -432,7 +450,8 @@ class Schema:
         '''
         if raise_exception:
             if not field_name in self.fields:
-                raise self.SchemaError("'%s' is not defined in this schema '%s'" % (field_name, self.__class__.__name__))
+                raise self.SchemaError("'%s' is not defined in this schema '%s'" % (
+                    field_name, self.__class__.__name__))
         return self.fields.get(field_name)
 
     def get_fields(self):
@@ -486,6 +505,7 @@ class Document:
     def __repr__(self):
         return "<Document: %s>" % "," .join(["(%s,%s)" % (f, getattr(self, f)) for f in self.fields])
 
+
 class SQLQueryComponent(abc.ABC):
     '''
     Used by the SQLQuery class. Each component represents a part of
@@ -503,64 +523,69 @@ class SQLQueryComponent(abc.ABC):
         '''
         raise NotImplementedError()
 
+
 class Function:
     '''
     SQL function applied to fields in the select part 
     of the query
     '''
 
+
 class Highlight(Function):
     '''
     Highlight SQL function
     '''
 
-    def __init__(self,marker_start,marker_end):
+    def __init__(self, marker_start, marker_end):
         self.marker_start = marker_start
         self.marker_end = marker_end
 
-    def to_sql(self,field):
+    def to_sql(self, field):
         return "highlight({table}_fts, {index}, '{m_start}', '{m_end}') as {field}".format(field=field.name,
-                                                                                     table=field.schema.name,
-                                                                                     index=field.schema.field_index[field.name],
-                                                                                     m_start=self.marker_start,
-                                                                                     m_end=self.marker_end)
+                                                                                           table=field.schema.name,
+                                                                                           index=field.schema.field_index[
+                                                                                               field.name],
+                                                                                           m_start=self.marker_start,
+                                                                                           m_end=self.marker_end)
+
 
 class Snippet(Function):
     '''
     Snippet SQL function
     '''
 
-    def __init__(self,text_before,text_after,snippet_length=16):
+    def __init__(self, text_before, text_after, snippet_length=16):
         self.text_before = text_before
         self.text_after = text_after
-        self.snippet_length=snippet_length
+        self.snippet_length = snippet_length
 
-    def to_sql(self,field):
+    def to_sql(self, field):
         return "snippet({table}_fts, {index}, '{t_before}', '{t_after}','...',{l}) as {field}".format(field=field.name,
-                                                                                     table=field.schema.name,
-                                                                                     index=field.schema.field_index[field.name],
-                                                                                     t_before=self.text_before,
-                                                                                     l=self.snippet_length,
-                                                                                     t_after=self.text_after)
+                                                                                                      table=field.schema.name,
+                                                                                                      index=field.schema.field_index[
+                                                                                                          field.name],
+                                                                                                      t_before=self.text_before,
+                                                                                                      l=self.snippet_length,
+                                                                                                      t_after=self.text_after)
+
 
 class Select(SQLQueryComponent):
     '''
     A single field selected in the query.
     '''
 
-    def __init__(self, field, sql_query,function=None):
+    def __init__(self, field, sql_query, function=None):
         super().__init__(sql_query)
         self.field = field
         self.function = function
 
     def to_sql(self):
-        if type(self.field) is str:
+        if isinstance(self.field,str):
             return self.field
-        else:
-            if isinstance(self.field, Date):
-                return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
-            elif isinstance(self.field, Datetime):
-                return "{full_name} as \"{name} [timestamp]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
+        if isinstance(self.field, Date):
+            return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
+        elif isinstance(self.field, Datetime):
+            return "{full_name} as \"{name} [timestamp]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
         if self.function is None:
             return self.field.get_full_qualified_name()
         return self.function.to_sql(self.field)
@@ -621,7 +646,8 @@ LOOKUPS = {
 
 }
 
-FTS_OPERATORS = ["-", ".","#","NEAR","@"]
+FTS_OPERATORS = ["-", ".", "#", "NEAR", "@"]
+
 
 class Filter(SQLQueryComponent):
     '''
@@ -642,12 +668,13 @@ class Filter(SQLQueryComponent):
             self.operators.append("*")
         if LU_INITIAL_TOKEN in lookup.names:
             self.operators.append("^")
-        if (LU_BOOL in lookup.names):
+        if LU_BOOL in lookup.names:
             self.keywords = self.keywords + ["AND", "OR"]
             self.operators.append("(")
             self.operators.append(")")
-        if (LU_NEG in lookup.names):
+        if LU_NEG in lookup.names:
             self.keywords.append("NOT")
+
 
 class MatchFilter(Filter):
     '''
@@ -656,30 +683,30 @@ class MatchFilter(Filter):
 
     def _escape(self, value):
         tokens_1 = self.sql_query.search_instance.schema._meta.tokenizer.tokenize(value,
-                                                                                keep=self.operators)
-        tokens=[]
-        multiple_token_quote=False
+                                                                                  keep=self.operators)
+        tokens = []
+        multiple_token_quote = False
         for token in tokens_1:
-            quote=True
+            quote = True
             if token.startswith('"'):
-                multiple_token_quote=True
+                multiple_token_quote = True
             if token.endswith('"'):
-                multiple_token_quote=False
+                multiple_token_quote = False
             if token in self.keywords:
-                quote=False
+                quote = False
             for operator in self.operators:
                 if operator in token:
-                    quote=False
-            if quote and not(multiple_token_quote):
+                    quote = False
+            if quote and not multiple_token_quote:
                 tokens.append(f'"{token}"')
             else:
                 tokens.append(token)
-        if len(tokens)==0:
+        if len(tokens) == 0:
             return '""'
         return " ".join(tokens)
 
     def to_sql(self):
-        v = "%s:%s" % (self.field.name,self._escape(self.value))
+        v = "%s:%s" % (self.field.name, self._escape(self.value))
         return v
 
 
@@ -809,6 +836,7 @@ class Join(SQLQueryComponent):
                                                                               left_field=self.left_field,
                                                                               right_field=self.right_field)
 
+
 class And(SQLQueryComponent):
     '''
     AND keyword in sql query
@@ -817,6 +845,7 @@ class And(SQLQueryComponent):
     def to_sql(self):
         return "AND"
 
+
 class Or(SQLQueryComponent):
     '''
     OR keyword in sql query
@@ -824,6 +853,7 @@ class Or(SQLQueryComponent):
 
     def to_sql(self):
         return "OR"
+
 
 class SQLQuery:
     '''
@@ -841,8 +871,8 @@ class SQLQuery:
         self.v_order_by = []
         self.v_limit_and_offset = None
         self.query_args = []
-        self.boolean_query=False
-        self.connect_fts_clause=None
+        self.boolean_query = False
+        self.connect_fts_clause = None
 
     def count(self):
         '''
@@ -861,21 +891,23 @@ class SQLQuery:
             self.v_select.clear()
         self.v_select.append(Select(field=field, sql_query=self))
 
-    def highlight(self,field,marker_start,marker_end):
+    def highlight(self, field, marker_start, marker_end):
         '''
         Marks given field for highlightening results
         '''
         for select in self.v_select:
             if select.field.name == field.name:
-                select.function = Highlight(marker_start=marker_start,marker_end=marker_end)
+                select.function = Highlight(
+                    marker_start=marker_start, marker_end=marker_end)
 
-    def snippet(self,field,text_before,text_after,snippet_length=16):
+    def snippet(self, field, text_before, text_after, snippet_length=16):
         '''
         Marks given field for extracting snippets
         '''
         for select in self.v_select:
             if select.field.name == field.name:
-                select.function = Snippet(text_before=text_before,text_after=text_after,snippet_length=snippet_length)        
+                select.function = Snippet(
+                    text_before=text_before, text_after=text_after, snippet_length=snippet_length)
 
     def table(self, table_name, clear=False):
         '''
@@ -917,22 +949,22 @@ class SQLQuery:
             if field.fts_enabled():
                 if operator is not None:
                     if len(self.v_where) > 0 and len(self.v_where_fts) == 0:
-                        self.connect_fts_clause=operator(self)
+                        self.connect_fts_clause = operator(self)
                     else:
                         self.v_where_fts.append(operator(self))
-                self.v_where_fts.append(filter_clazz(field=field, value=lookup.value, lookup=lookup, sql_query=self))
+                self.v_where_fts.append(filter_clazz(
+                    field=field, value=lookup.value, lookup=lookup, sql_query=self))
             else:
                 if operator is not None:
                     if len(self.v_where_fts) > 0 and len(self.v_where) == 0:
-                        self.connect_fts_clause=operator(self)
+                        self.connect_fts_clause = operator(self)
                     else:
                         self.v_where.append(operator(self))
                 else:
-                    if len(self.v_where)>0:
+                    if len(self.v_where) > 0:
                         self.v_where.append(And(self))
-                self.v_where.append(filter_clazz(field=field, value=lookup.value, lookup=lookup, sql_query=self))
-
-
+                self.v_where.append(filter_clazz(
+                    field=field, value=lookup.value, lookup=lookup, sql_query=self))
 
     def order_by(self, field, sort_dir=None, clear=False):
         '''
@@ -941,14 +973,15 @@ class SQLQuery:
         '''
         if clear:
             self.v_order_by.clear()
-        self.v_order_by.append(OrderBy(field=field, sort_dir=sort_dir, sql_query=self))
-
+        self.v_order_by.append(
+            OrderBy(field=field, sort_dir=sort_dir, sql_query=self))
 
     def limit_and_offset(self, limit, offset):
         '''
         Set limit and offset of query
         '''
-        self.v_limit_and_offset = LimitAndOffset(limit=limit, offset=offset, sql_query=self)
+        self.v_limit_and_offset = LimitAndOffset(
+            limit=limit, offset=offset, sql_query=self)
 
     def add_value(self, value):
         '''
@@ -978,10 +1011,10 @@ class SQLQuery:
                     stmt.append(self.connect_fts_clause.to_sql())
                 else:
                     stmt.append(" AND ")
-                table_name="%s_fts" % self.search_instance.schema.name
+                table_name = "%s_fts" % self.search_instance.schema.name
                 stmt.append(table_name)
                 stmt.append("MATCH ?")
-                val = " ".join([w.to_sql() for w in self.v_where_fts])                
+                val = " ".join([w.to_sql() for w in self.v_where_fts])
                 self.add_value(val)
         if len(self.v_order_by) > 0:
             stmt.append("ORDER BY")
@@ -990,31 +1023,38 @@ class SQLQuery:
             stmt.append(self.v_limit_and_offset.to_sql())
         return " ".join(stmt), self.query_args
 
+
 class QExpr:
 
-    def __init__(self,**kwargs):
-        if len(kwargs)>1:
-            raise Query.QueryError("Only one keyword argument allowed in Q objects.")
-        self.kwargs=kwargs
-        self.operator=None
+    def __init__(self, **kwargs):
+        if len(kwargs) > 1:
+            raise Query.QueryError(
+                "Only one keyword argument allowed in Q objects.")
+        self.kwargs = kwargs
+        self.operator = None
 
     def __repr__(self):
-        return "<QExpr:%s %s>" % (self.operator,self.kwargs)
+        return "<QExpr:%s %s>" % (self.operator, self.kwargs)
+
 
 class Q:
+    '''
+    Q classes are used to express OR queries applied to 
+    multiple fields of a schema
+    '''
 
-    def __init__(self,**kwargs):
+    def __init__(self, **kwargs):
         self.q_exprs = [QExpr(**kwargs)]
 
-    def __or__(self,obj):
+    def __or__(self, obj):
         for q_expr in obj.q_exprs:
-            q_expr.operator=Or
+            q_expr.operator = Or
             self.q_exprs.append(q_expr)
         return self
 
-    def __and__(self,obj):
+    def __and__(self, obj):
         for q_expr in obj.q_exprs:
-            q_expr.operator=And
+            q_expr.operator = And
             self.q_exprs.append(q_expr)
         return self
 
@@ -1023,6 +1063,7 @@ class Q:
 
     def __iter__(self):
         return iter(self.q_exprs)
+
 
 class Query:
     '''
@@ -1038,24 +1079,28 @@ class Query:
 
     def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
-        id_field = self.search_instance.schema.get_id_field() or "id"   
+        id_field = self.search_instance.schema.get_id_field() or "id"
         self.arguments = arguments
         self.sql_query = SQLQuery(search_instance=search_instance)
         self.unions = []
         for field in self.search_instance.schema.get_fields():
             self.sql_query.select(field=field)
-        if len(arguments)>0:
+        if len(arguments) > 0:
             for argument in arguments.values():
                 for lookup in argument.lookups:
-                    self.sql_query.where(field=argument.field, lookup=lookup , operator = None)
+                    self.sql_query.where(
+                        field=argument.field, lookup=lookup, operator=None)
         else:
             for q_expr in q_arguments:
                 for argument in q_expr.arguments.values():
                     for lookup in argument.lookups:
-                        self.sql_query.where(field=argument.field,lookup=lookup , operator = q_expr.operator)
+                        self.sql_query.where(
+                            field=argument.field, lookup=lookup, operator=q_expr.operator)
         self.sql_query.table(table_name=self.search_instance.schema.name)
-        self.sql_query.table(table_name="%s_fts" % self.search_instance.schema.name)
-        self.sql_query.join(self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], id_field, "rowid")
+        self.sql_query.table(table_name="%s_fts" %
+                             self.search_instance.schema.name)
+        self.sql_query.join(
+            self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], id_field, "rowid")
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
         self._default_order_by_set = True
@@ -1084,15 +1129,18 @@ class Query:
         '''
         for a in args:
             if a.startswith("+") or a.startswith("-"):
-                field = self.search_instance.schema.get_field(a[1:], raise_exception=True)
+                field = self.search_instance.schema.get_field(
+                    a[1:], raise_exception=True)
                 sort_dir = a[0]
             else:
-                field = self.search_instance.schema.get_field(a, raise_exception=True)
+                field = self.search_instance.schema.get_field(
+                    a, raise_exception=True)
                 sort_dir = "+"
-            # If the _defaults_set parameter is True, only the default sort order 
-            # in the constructor has been yet. In that case we clear the order by 
+            # If the _defaults_set parameter is True, only the default sort order
+            # in the constructor has been yet. In that case we clear the order by
             # list and set the new order by clause.
-            self.sql_query.order_by(field, sort_dir, clear=self._default_order_by_set)
+            self.sql_query.order_by(
+                field, sort_dir, clear=self._default_order_by_set)
             self._default_order_by_set = False
         return self
 
@@ -1104,9 +1152,11 @@ class Query:
         if len(self.unions) > 0:
             # Copy order by clause and limit / offsets to the last query in the union
             last_query = self.unions[len(self.unions)-1]
-            if not(self.is_aggregate_query):
-                last_query.sql_query.v_order_by = copy.copy(self.sql_query.v_order_by)
-                last_query.sql_query.v_limit_and_offset = copy.copy(self.sql_query.v_limit_and_offset)
+            if not self.is_aggregate_query:
+                last_query.sql_query.v_order_by = copy.copy(
+                    self.sql_query.v_order_by)
+                last_query.sql_query.v_limit_and_offset = copy.copy(
+                    self.sql_query.v_limit_and_offset)
             else:
                 last_query.sql_query.v_order_by.clear()
         # Clear all other clauses
@@ -1117,11 +1167,14 @@ class Query:
         self.sql_query.v_limit_and_offset = None
 
     def __or__(self, obj):
-        logger.warning("Applying | operator on .search method is deprecated since version 0.9. Consider using Q objects instead.")
-        if not(isinstance(obj, Query)):
-            raise self.QueryError("Only instances of class Query can be used with the OR operator.")
-        if not(obj._defaults_set()) or not(self._defaults_set()):
-            raise self.QueryError("You cannot use .values and .order_by methods in the context of a union.")
+        logger.warning(
+            "Applying | operator on .search method is deprecated since version 0.9. Consider using Q objects instead.")
+        if not isinstance(obj, Query):
+            raise self.QueryError(
+                "Only instances of class Query can be used with the OR operator.")
+        if not obj._defaults_set() or not self._defaults_set():
+            raise self.QueryError(
+                "You cannot use .values and .order_by methods in the context of a union.")
         self.unions.append(obj)
         return self
 
@@ -1130,36 +1183,44 @@ class Query:
         Set the values you want to have in the search result list.
         '''
         for a in args:
-            field = self.search_instance.schema.get_field(a, raise_exception=True)
-            self.sql_query.select(field,clear=self._default_values_set)
+            field = self.search_instance.schema.get_field(
+                a, raise_exception=True)
+            self.sql_query.select(field, clear=self._default_values_set)
             self._default_values_set = False
         # Propagate this to union queries as well:
         for query in self.unions:
             query.values(*args)
         return self
 
-    def highlight(self,*args,marker_start="*",marker_end="*"):
+    def highlight(self, *args, marker_start="*", marker_end="*"):
         '''
         Marks given field for highlight
         '''
         for a in args:
-            field_obj = self.search_instance.schema.get_field(a, raise_exception=True)
-            if not(field_obj.fts_enabled()):
-                raise self.QueryError("highlight can only be applied to Text fields with index set to True.")
-            self.sql_query.highlight(field_obj,marker_start=marker_start,marker_end=marker_end)
+            field_obj = self.search_instance.schema.get_field(
+                a, raise_exception=True)
+            if not field_obj.fts_enabled():
+                raise self.QueryError(
+                    "highlight can only be applied to Text fields with index set to True.")
+            self.sql_query.highlight(
+                field_obj, marker_start=marker_start, marker_end=marker_end)
         return self
 
-    def snippet(self,*args,text_before="*",text_after="*",snippet_length=16):
+    def snippet(self, *args, text_before="*", text_after="*", snippet_length=16):
         '''
         Marks given field for snippet
         '''
-        if snippet_length <=0 or snippet_length >=64:
-            raise self.QueryError("snippet_length must be greater than 0 and lesser than 64.")
+        if snippet_length <= 0 or snippet_length >= 64:
+            raise self.QueryError(
+                "snippet_length must be greater than 0 and lesser than 64.")
         for a in args:
-            field_obj = self.search_instance.schema.get_field(a, raise_exception=True)
-            if not(field_obj.fts_enabled()):
-                raise self.QueryError("snippet can only be applied to Text fields with index set to True.")
-            self.sql_query.snippet(field_obj,text_before=text_before,text_after=text_after,snippet_length=snippet_length)
+            field_obj = self.search_instance.schema.get_field(
+                a, raise_exception=True)
+            if not field_obj.fts_enabled():
+                raise self.QueryError(
+                    "snippet can only be applied to Text fields with index set to True.")
+            self.sql_query.snippet(field_obj, text_before=text_before,
+                                   text_after=text_after, snippet_length=snippet_length)
         return self
 
     def _build_results(self, results):
@@ -1193,26 +1254,37 @@ class Query:
                 index_start = int(index.start)
                 index_stop = int(index.stop)
             except Exception as exc:
-                raise self.QueryError("Slicing arguments must be positive integers and not None.") from exc
-            self.sql_query.limit_and_offset(limit=index_stop, offset=index_start)
+                raise self.QueryError(
+                    "Slicing arguments must be positive integers and not None.") from exc
+            self.sql_query.limit_and_offset(
+                limit=index_stop, offset=index_start)
             return self._query()
         else:
             try:
                 self.sql_query.limit_and_offset(limit=1, offset=int(index))
             except Exception as exc:
-                raise self.QueryError("Index arguments must be positive integers and not None.") from exc
+                raise self.QueryError(
+                    "Index arguments must be positive integers and not None.") from exc
         return self._query()[0]
 
     def __iter__(self):
         return iter(self._query())
 
+
 class PocketContextManager(abc.ABC):
 
-    def __enter__(self,*args,**kwargs):
+    def __init__(self, db_name=None,
+                 index_name="documents",
+                 schema=DefaultSchema):
+        self.pocketsearch = PocketSearch(
+            index_name=index_name, db_name=db_name, schema=schema)
+
+    def __enter__(self, *args, **kwargs):
         return self.pocketsearch
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.pocketsearch.close()
+
 
 class PocketReader(PocketContextManager):
     '''
@@ -1220,18 +1292,14 @@ class PocketReader(PocketContextManager):
     in read-only mode.
     '''
 
-    def __init__(self,db_name=None,
-                      index_name="documents",
-                      schema=DefaultSchema):
-        self.pocketsearch = PocketSearch(index_name=index_name,db_name=db_name,schema=schema)
 
 class PocketWriter(PocketContextManager):
     '''
     Simple context manager opening a pocket search instance 
     in read/write mode.
-    '''    
+    '''
 
-    def __init__(self,db_name=None,
+    def __init__(self, db_name=None,
                  index_name="documents",
                  schema=DefaultSchema):
         self.pocketsearch = PocketSearch(
@@ -1246,13 +1314,14 @@ class PocketWriter(PocketContextManager):
         if exc_type is None:
             if self.pocketsearch.schema._meta.spell_check:
                 logger.debug("Building spell checking dictionary")
-                #self.pocketsearch._get_or_create_spellchecker_instance().build()
+                # self.pocketsearch._get_or_create_spellchecker_instance().build()
             self.pocketsearch.execute_sql("commit")
         else:
             logger.exception(exc_traceback)
             logger.debug("Rolling back transaction")
             self.pocketsearch.execute_sql("rollback")
         self.pocketsearch.close()
+
 
 class SpellChecker:
     '''
@@ -1268,7 +1337,7 @@ class SpellChecker:
         bigrams = Text(index=True)
         bigrams_length = Int(index=True)
 
-    def __init__(self,search_instance):
+    def __init__(self, search_instance):
         self.search_instance = search_instance
         self.spell_checker = PocketSearch(db_name=search_instance.db_name,
                                           index_name="spellcheck_%s" % search_instance.index_name,
@@ -1276,14 +1345,14 @@ class SpellChecker:
                                           schema=self.SpellCheckerSchema,
                                           connection=search_instance.connection)
 
-    def _generate_bigrams(self,token,operator=" "):
+    def _generate_bigrams(self, token, operator=" "):
         bigrams = []
         for i in range(len(token) - 1):
             bigram = token[i:i+2]
             bigrams.append(bigram)
         return operator.join(bigrams)
 
-    def _levenshtein_distance(self,word1, word2):
+    def _levenshtein_distance(self, word1, word2):
         m, n = len(word1), len(word2)
 
         # Create a distance matrix
@@ -1316,22 +1385,26 @@ class SpellChecker:
         '''
         self.spell_checker.delete_all()
         for token_info in self.search_instance.tokens():
-            token=token_info.get("token")
+            token = token_info.get("token")
             bigrams = self._generate_bigrams(token)
-            self.spell_checker.insert(token=token,bigrams=bigrams,bigrams_length=len(bigrams))
+            self.spell_checker.insert(
+                token=token, bigrams=bigrams, bigrams_length=len(bigrams))
 
-    def suggest(self,query):
+    def suggest(self, query):
         '''
         Returns a list of auto corrections for the given query
         '''
-        results={}
+        results = {}
         for cleaned_token in set(Unicode61().tokenize(query)):
-            if len(cleaned_token)>1:
-                results[cleaned_token]=[]
-                for result in self.spell_checker.search(bigrams__allow_boolean=self._generate_bigrams(cleaned_token," OR "))[0:10]:
-                    results[cleaned_token].append((result.token,self._levenshtein_distance(result.token,cleaned_token)))
-                results[cleaned_token]=sorted(results[cleaned_token], key=lambda x: x[1])
+            if len(cleaned_token) > 1:
+                results[cleaned_token] = []
+                for result in self.spell_checker.search(bigrams__allow_boolean=self._generate_bigrams(cleaned_token, " OR "))[0:10]:
+                    results[cleaned_token].append(
+                        (result.token, self._levenshtein_distance(result.token, cleaned_token)))
+                results[cleaned_token] = sorted(
+                    results[cleaned_token], key=lambda x: x[1])
         return results
+
 
 class PocketSearch:
     '''
@@ -1385,7 +1458,7 @@ class PocketSearch:
         self.connection = None
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
-            self.writeable = True      
+            self.writeable = True
         else:
             self.writeable = False
         self.index_name = index_name
@@ -1394,8 +1467,9 @@ class PocketSearch:
                 self.connection = self._open()
             else:
                 self.connection = connection
-                logger.debug("Re-using existing database connection %s" % connection)            
-            self.cursor = self.connection.cursor()        
+                logger.debug(
+                    "Re-using existing database connection %s" % connection)
+            self.cursor = self.connection.cursor()
             if self.writeable:
                 self._create_table(self.schema.name)
             if self.schema._meta.spell_check:
@@ -1413,7 +1487,8 @@ class PocketSearch:
         Returns spell checker instance (if available)
         '''
         if self.spell_checker is None:
-            raise self.schema.SchemaError("PocketSearch instance is not configured to use spell checking. Check your schema definition.")
+            raise self.schema.SchemaError(
+                "PocketSearch instance is not configured to use spell checking. Check your schema definition.")
         return self._spell_checker
 
     def _u_name(self):
@@ -1425,7 +1500,6 @@ class PocketSearch:
         return connection_pool.get_connection(db_name=self.db_name,
                                               writeable=self.writeable,
                                               conn_id=self.db_id)
-
 
     def _close(self):
         if self.connection:
@@ -1444,7 +1518,7 @@ class PocketSearch:
         '''
         Tests, if the index is writable.
         '''
-        if not(self.writeable):
+        if not self.writeable:
             raise self.IndexError(
                 "Index '{schema_name}' has been opened in read-only mode. Cannot write changes to index.".format(schema_name=self.schema.name))
 
@@ -1452,7 +1526,7 @@ class PocketSearch:
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
-        logger.debug("sql=%s,args=%s" % (f"{sql}",args))
+        logger.debug("sql=%s,args=%s" % (f"{sql}", args))
         return self.cursor.execute(f"{sql}", args)
 
     def _populate_fts(self):
@@ -1461,11 +1535,11 @@ class PocketSearch:
         the index_name table.
         '''
         for row in self.cursor.execute('select * from %s' % self.index_name):
-            params={}
+            params = {}
             for col in row.keys():
                 if col != "id":
-                    params[col]=row[col]
-            self.insert("%s_fts" % self.index_name,**params)
+                    params[col] = row[col]
+            self.insert("%s_fts" % self.index_name, **params)
 
     def _format_sql(self, index_name, fields, sql):
         '''
@@ -1473,9 +1547,12 @@ class PocketSearch:
         '''
         return sql.format(
             index_name=index_name,
-            cols=", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
-            new_cols=", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
-            old_cols=", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()]),
+            cols=", ".join([field.to_sql(index_table=True)
+                           for field in fields if field.fts_enabled()]),
+            new_cols=", ".join(["new.%s" % field.to_sql(index_table=True)
+                               for field in fields if field.fts_enabled()]),
+            old_cols=", ".join(["old.%s" % field.to_sql(index_table=True)
+                               for field in fields if field.fts_enabled()]),
         )
 
     def _create_additional_options(self):
@@ -1489,48 +1566,54 @@ class PocketSearch:
     def _create_prefix_index(self):
         prefix_index = self.schema._meta.prefix_index
         if prefix_index is not None:
-            if not(isinstance(prefix_index,list)):
-                raise self.schema.SchemaError("prefix_index must be list containing positive integer values")
-            if not(all(isinstance(item, int) and item > 0 for item in prefix_index)):
-                raise self.schema.SchemaError("prefix_index list should only contain positive integer values.")
+            if not isinstance(prefix_index, list):
+                raise self.schema.SchemaError(
+                    "prefix_index must be list containing positive integer values")
+            if not all(isinstance(item, int) and item > 0 for item in prefix_index):
+                raise self.schema.SchemaError(
+                    "prefix_index list should only contain positive integer values.")
             # eliminate duplicates
             prefix_index = set(prefix_index)
             return ", prefix='{prefix_index}'".format(prefix_index=" ".join(str(item) for item in prefix_index))
         return ""
 
     def _table_exists(self):
-        self.cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (self.index_name,))
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (self.index_name,))
         table_exists = self.cursor.fetchone()[0] > 0
-        self.cursor.execute("SELECT * from pocket_search_master where name = ?",(self.index_name,))
+        self.cursor.execute(
+            "SELECT * from pocket_search_master where name = ?", (self.index_name,))
         managed = self.cursor.fetchone()
         if managed is None:
-            mgmt_type = (False,"")
+            mgmt_type = (False, "")
         else:
-            mgmt_type = (True,managed["content"])
-        return table_exists , mgmt_type
+            mgmt_type = (True, managed["content"])
+        return table_exists, mgmt_type
 
     def _check_fields(self):
         self.cursor.execute("PRAGMA table_info(%s)" % self.index_name)
         table_info = self.cursor.fetchall()
         fields = {}
         mappings = {
-            "INT" : "INTEGER",
-            "FLOAT" : "REAL"
+            "INT": "INTEGER",
+            "FLOAT": "REAL"
         }
         for column in table_info:
             if column[2].upper().startswith("VARCHAR"):
                 data_type = "TEXT"
             else:
-                data_type = mappings.get(column[2].upper(),column[2])
-            fields[column[1]]=data_type
+                data_type = mappings.get(column[2].upper(), column[2])
+            fields[column[1]] = data_type
         # check schema
-        for field , definition in self.schema.fields.items():
+        for field, definition in self.schema.fields.items():
             if field != "rank":
                 if field not in fields:
-                    raise self.DatabaseError(f"'{field}' is present in the schema but has not been defined in the legacy table.")
+                    raise self.DatabaseError(
+                        f"'{field}' is present in the schema but has not been defined in the legacy table.")
                 if definition.data_type != fields[field]:
                     legacy_definition = fields[field]
-                    raise self.DatabaseError(f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
+                    raise self.DatabaseError(f"'{field}' has data type '{
+                                             definition.data_type}' in schema but '{legacy_definition}' was expected.")
         return True
 
     def _create_table(self, index_name):
@@ -1542,20 +1625,23 @@ class PocketSearch:
         default_index_fields = []  # non-FTS index fields
         id_field = self.schema.get_id_field() or "id"
         for field in self.schema:
-            if (not(field.hidden)):
+            if not field.hidden:
                 if field.index and field.fts_enabled():
                     index_fields.append(field)
-                elif field.index and not(field.fts_enabled()):
+                elif field.index and not field.fts_enabled():
                     default_index_fields.append(field)
                 fields.append(field)
         if len(index_fields) == 0:
-            raise IndexError("Schema does not have a single indexable FTS field.")
+            raise IndexError(
+                "Schema does not have a single indexable FTS field.")
         standard_fields = ", ".join([field.to_sql() for field in fields])
-        fts_fields = ", ".join([field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        fts_fields = ", ".join([field.to_sql(index_table=True)
+                               for field in fields if field.fts_enabled()])
         additional_options = self._create_additional_options()
         prefix_index = self._create_prefix_index()
         # Create meta table holding all pocketsearch created search index names:
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS pocket_search_master (name TEXT unique, content TEXT)")
+        self.cursor.execute(
+            "CREATE TABLE IF NOT EXISTS pocket_search_master (name TEXT unique, content TEXT)")
         # Check if the table is already there and if it is under management of pocketsearch:
         table_exists, mgmt_type = self._table_exists()
         content = self.index_name
@@ -1564,16 +1650,20 @@ class PocketSearch:
             # We will create a contentless fts5 virtual table:
             self._check_fields()
             managed, content = mgmt_type
-        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
+        sql_table = f"CREATE TABLE IF NOT EXISTS {
+            index_name}({standard_fields})"
         sql_virtual_table = f'''
-        CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields}, 
+        CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields},
             content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
-        ''' 
+        '''
         # aux tables
-        sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
+        sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {
+            index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
         # Trigger definitions:
-        old_cols = ", ".join(["old.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
-        new_cols = ", ".join(["new.%s" % field.to_sql(index_table=True) for field in fields if field.fts_enabled()])
+        old_cols = ", ".join(["old.%s" % field.to_sql(index_table=True)
+                             for field in fields if field.fts_enabled()])
+        new_cols = ", ".join(["new.%s" % field.to_sql(index_table=True)
+                             for field in fields if field.fts_enabled()])
         sql_trigger_insert = f'''
         CREATE TRIGGER IF NOT EXISTS {index_name}_ai AFTER INSERT ON {index_name} BEGIN
         INSERT INTO {index_name}_fts(rowid, {fts_fields}) VALUES (new.{id_field}, {new_cols});
@@ -1597,21 +1687,28 @@ class PocketSearch:
         logger.debug(sql_trigger_delete)
         logger.debug(sql_trigger_update)
         self.cursor.execute(sql_virtual_table)
-        self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_insert))
-        self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_delete))
-        self.cursor.execute(self._format_sql(index_name, fields, sql_trigger_update))
+        self.cursor.execute(self._format_sql(
+            index_name, fields, sql_trigger_insert))
+        self.cursor.execute(self._format_sql(
+            index_name, fields, sql_trigger_delete))
+        self.cursor.execute(self._format_sql(
+            index_name, fields, sql_trigger_update))
         if table_exists:
             if not managed:
                 # Index existing data, this will be executed only once
-                sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {fts_fields} FROM {index_name}"
+                sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {
+                    fts_fields} FROM {index_name}"
                 logger.debug(sql_index_data)
                 self.cursor.execute(sql_index_data)
-                self.cursor.execute("insert or ignore into pocket_search_master values (?,?)",(index_name,content))
+                self.cursor.execute(
+                    "insert or ignore into pocket_search_master values (?,?)", (index_name, content))
         else:
             # create standard indices
-            self.cursor.execute("insert or ignore into pocket_search_master values (?,?)",(index_name,content))
+            self.cursor.execute(
+                "insert or ignore into pocket_search_master values (?,?)", (index_name, content))
             for field in default_index_fields:
-                self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(index_name=index_name, field=field.name))
+                self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_std_{index_name}_{field} ON {index_name} ({field});".format(
+                    index_name=index_name, field=field.name))
         logger.debug("Commiting transaction")
         self.cursor.execute("commit")
 
@@ -1619,17 +1716,15 @@ class PocketSearch:
         '''
         Return token statistics on the current index
         '''
-        sql = f"""select term as token, doc as num_documents, 
+        sql = f"""select term as token, doc as num_documents,
         cnt as total_count from {self.index_name}_fts_v order by total_count desc"""
         self.cursor.execute(sql)
         row = self.cursor.fetchone()
         while row is not None:
-            yield {"token":row["token"],
-                   "num_documents":row["num_documents"],
-                   "total_count":row["total_count"]}
+            yield {"token": row["token"],
+                   "num_documents": row["num_documents"],
+                   "total_count": row["total_count"]}
             row = self.cursor.fetchone()
-
-
 
     def get_arguments(self, kwargs, for_search=True):
         '''
@@ -1644,26 +1739,33 @@ class PocketSearch:
                 referenced_fields[comp[0]] = []
             if len(comp) > 1:
                 if not for_search:
-                    raise self.FieldError("Lookups are not allowed in the context of inserts and updates")
-                referenced_fields[comp[0]].append(self.Lookup(comp[1:], kwargs[kwarg]))
+                    raise self.FieldError(
+                        "Lookups are not allowed in the context of inserts and updates")
+                referenced_fields[comp[0]].append(
+                    self.Lookup(comp[1:], kwargs[kwarg]))
             else:
-                referenced_fields[comp[0]].append(self.Lookup(["eq"], kwargs[kwarg]))
+                referenced_fields[comp[0]].append(
+                    self.Lookup(["eq"], kwargs[kwarg]))
         for f, lookups in referenced_fields.items():
             if f not in self.schema.fields:
-                raise self.FieldError(f"Unknown field '{f}' - it is not defined in the schema.")
+                raise self.FieldError(
+                    f"Unknown field '{f}' - it is not defined in the schema.")
             for lookup in lookups:
                 for name in lookup.names:
                     if not name in LOOKUPS:
-                        raise self.FieldError(f"Unknown lookup: '{name}' in field '{f}'")
+                        raise self.FieldError(f"Unknown lookup: '{
+                                              name}' in field '{f}'")
         arguments = {}
         for field in self.schema:
-            if field.name not in referenced_fields and not(for_search) and field.name not in [id_field, "rank"]:
-                raise self.FieldError(f"Missing field '{field.name}' in keyword arguments.")
+            if field.name not in referenced_fields and not (for_search) and field.name not in [id_field, "rank"]:
+                raise self.FieldError(
+                    f"Missing field '{field.name}' in keyword arguments.")
             if field.name in referenced_fields:
-                arguments[field.name] = self.Argument(field, referenced_fields[field.name])
+                arguments[field.name] = self.Argument(
+                    field, referenced_fields[field.name])
         return arguments
 
-    def build(self,index_reader):
+    def build(self, index_reader):
         '''
         Create an index reading a document from an index_builder instance.
         '''
@@ -1671,16 +1773,16 @@ class PocketSearch:
         for elem in index_reader.read():
             self.insert_or_update(**elem)
 
-    def insert_or_update(self,**kwargs):
+    def insert_or_update(self, **kwargs):
         '''
         Insert or updates a new document if it already exists.
         '''
         self.assure_writeable()
         if self.schema.id_field is None:
-            raise self.DatabaseError("""No IDFIeld has been defined in the schema - 
+            raise self.DatabaseError("""No IDFIeld has been defined in the schema -
                                      cannot perform insert_or_update.""")
         arguments = self.get_arguments(kwargs, for_search=False)
-        joined_fields = ",".join([f for f in arguments])
+        joined_fields = ",".join(arguments)
         values = [argument.lookups[0].value for argument in arguments.values()]
         placeholder_values = "?" * len(values)
         sql = "insert or replace into %s (%s) values (%s)" % (self.schema.name,
@@ -1690,7 +1792,7 @@ class PocketSearch:
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        #self.connection.commit()
+        # self.connection.commit()
 
     def commit(self):
         '''
@@ -1708,7 +1810,7 @@ class PocketSearch:
         database, resulting in potential query speed ups.
         '''
         self.assure_writeable()
-        self._close() # close old connection, so we do not have any conflicts
+        self._close()  # close old connection, so we do not have any conflicts
         connection = self._open()
         connection.cursor().execute("VACUUM")
         connection.close()
@@ -1733,7 +1835,7 @@ class PocketSearch:
         Inserts a new document to the search index.
         '''
         self.assure_writeable()
-        if len(args)>0:
+        if len(args) > 0:
             table_name = args[0]
         else:
             table_name = self.schema.name
@@ -1749,7 +1851,7 @@ class PocketSearch:
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        #self.commit()
+        # self.commit()
 
     def update(self, **kwargs):
         '''
@@ -1760,14 +1862,16 @@ class PocketSearch:
         id_field = self.schema.get_id_field() or "id"
         docid = kwargs.pop("rowid")
         arguments = self.get_arguments(kwargs, for_search=False)
-        values = [argument.lookups[0].value for argument in arguments.values()] + [docid]
+        values = [argument.lookups[0].value for argument in arguments.values()] + \
+            [docid]
         stmt = []
         for f in arguments:
             stmt.append("%s=?" % f)
-        sql = "update %s set %s where %s=?" % (self.schema.name, ",".join(stmt),id_field)
+        sql = "update %s set %s where %s=?" % (
+            self.schema.name, ",".join(stmt), id_field)
         logger.debug(sql)
         self.cursor.execute(sql, values)
-        #self.commit()
+        # self.commit()
 
     def delete(self, rowid):
         '''
@@ -1776,10 +1880,10 @@ class PocketSearch:
         '''
         self.assure_writeable()
         id_field = self.schema.get_id_field() or "id"
-        sql = "delete from %s where %s = ?" % (self.schema.name,id_field)
+        sql = "delete from %s where %s = ?" % (self.schema.name, id_field)
         logger.debug(sql)
         self.cursor.execute(sql, (rowid,))
-        #self.commit()
+        # self.commit()
 
     def delete_all(self):
         '''
@@ -1789,76 +1893,85 @@ class PocketSearch:
         sql = "delete from %s" % self.schema.name
         logger.debug(sql)
         self.cursor.execute(sql)
-        #self.commit()
+        # self.commit()
 
-    def autocomplete(self,*args,**kwargs):
+    def autocomplete(self, *args, **kwargs):
         '''
         Constructs a query against a given field that performs auto-complete
         (thus, predicting what the rest of a word is a user types in).
         '''
-        if len(args)>0:
-            raise Query.QueryError(""".autocomplete expects exactly one keyword argument 
+        if len(args) > 0:
+            raise Query.QueryError(""".autocomplete expects exactly one keyword argument
             naming the field in the schema you want to search.""")
-        if len(kwargs)>1:
-            raise Query.QueryError("Only one field can be searched through autocomplete.")
-        if len(kwargs)==0:
+        if len(kwargs) > 1:
+            raise Query.QueryError(
+                "Only one field can be searched through autocomplete.")
+        if len(kwargs) == 0:
             # return all results
-            return Query(search_instance=self,arguments=[],q_arguments=[])
+            return Query(search_instance=self, arguments=[], q_arguments=[])
         query = list(kwargs.values())[0]
         if "__" in list(kwargs.keys())[0]:
-            raise Query.QueryError("Lookups are not allowed in autocomplete queries.")
+            raise Query.QueryError(
+                "Lookups are not allowed in autocomplete queries.")
         field = list(kwargs.keys())[0]
         query_components = query.split(" ")
         # quote, if necessary
-        for idx,component in enumerate(query_components):
-            for operator in FTS_OPERATORS+["*","AND","OR","NEAR"]:          
+        for idx, component in enumerate(query_components):
+            for operator in FTS_OPERATORS+["*", "AND", "OR", "NEAR"]:
                 if operator in component:
-                    query_components[idx]='"%s"' % query_components[idx]
-        if len(query_components)>1:
-            prefix=""
+                    query_components[idx] = '"%s"' % query_components[idx]
+        if len(query_components) > 1:
+            prefix = ""
         else:
-            prefix="*"
-        query_components[0]="(^{first_word}{prefix} OR {first_word}{prefix})".format(first_word=query_components[0],
-                                                                                     prefix=prefix)
-        if len(query_components)>1:
-            query_components[len(query_components)-1]=query_components[-1:][0]+"*"
+            prefix = "*"
+        query_components[0] = "(^{first_word}{prefix} OR {first_word}{prefix})".format(first_word=query_components[0],
+                                                                                       prefix=prefix)
+        if len(query_components) > 1:
+            query_components[len(query_components) -
+                             1] = query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
-        return self.search(**{"%s__allow_boolean__allow_prefix__allow_initial_token" % field:query})
+        return self.search(**{f"{field}__allow_boolean__allow_prefix__allow_initial_token" : query})
 
-    def suggest(self,query):
+    def suggest(self, query):
+        '''
+        Return a list of spelling suggestions for the tokens given in 
+        query.
+        '''
         if self.schema._meta.spell_check:
             return self.spell_checker().suggest(query)
         raise Query.QueryError("Spell checks are not supported in this index.")
 
-    def _clear_kwargs(self,kwargs):
+    def _clear_kwargs(self, kwargs):
         cleared_kwargs = {}
         for k, v in kwargs.items():
-            if isinstance(v,str):
-                if len(v)>0:
-                    cleared_kwargs[k]=v
+            if isinstance(v, str):
+                if len(v) > 0:
+                    cleared_kwargs[k] = v
                 else:
-                    cleared_kwargs[k]='""'
+                    cleared_kwargs[k] = '""'
             else:
                 if v is not None:
-                    cleared_kwargs[k]=v
+                    cleared_kwargs[k] = v
                 else:
-                    cleared_kwargs[k]='""'
+                    cleared_kwargs[k] = '""'
         return cleared_kwargs
 
     def search(self, *args, **kwargs):
         '''
         Initiate search in index
         '''
-        if len(args)>0 and len(kwargs)>0:
-            raise Query.QueryError("Cannot mix Q objects and keyword arguments.")
+        if len(args) > 0 and len(kwargs) > 0:
+            raise Query.QueryError(
+                "Cannot mix Q objects and keyword arguments.")
         # check for empty kwargs
         cleared_kwargs = self._clear_kwargs(kwargs)
-        if len(args)>0:
+        if len(args) > 0:
             for q_expr in args[0]:
-                q_expr.arguments = self.get_arguments(self._clear_kwargs(q_expr.kwargs))
-            return Query(search_instance=self,arguments=[],q_arguments=args[0])
+                q_expr.arguments = self.get_arguments(
+                    self._clear_kwargs(q_expr.kwargs))
+            return Query(search_instance=self, arguments=[], q_arguments=args[0])
         arguments = self.get_arguments(cleared_kwargs)
-        return Query(search_instance=self, arguments=arguments,q_arguments=[])
+        return Query(search_instance=self, arguments=arguments, q_arguments=[])
 
 
 class IndexReader(abc.ABC):
@@ -1876,6 +1989,7 @@ class IndexReader(abc.ABC):
         a document in the schema.
         '''
         raise NotImplementedError()
+
 
 class FileSystemReader(IndexReader):
     '''
@@ -1904,7 +2018,7 @@ class FileSystemReader(IndexReader):
         filename = Text(is_id_field=True)
         text = Text(index=True)
 
-    def __init__(self, base_dir="./", file_extensions=None,**kwargs):
+    def __init__(self, base_dir="./", file_extensions=None):
         if file_extensions is None:
             self.file_extensions = [".txt"]
         else:
@@ -1922,13 +2036,14 @@ class FileSystemReader(IndexReader):
         Traverse directory and yield files found matching 
         the given extensions. This expects
         '''
-        for root, _ , files in os.walk(self.base_dir):
+        for root, _, files in os.walk(self.base_dir):
             for file in files:
                 for extension in self.file_extensions:
                     if file.endswith(extension):
                         file_path = os.path.join(root, file)
-                        with open(file_path, 'r',encoding=self.encoding) as file:
+                        with open(file_path, 'r', encoding=self.encoding) as file:
                             yield self.file_to_dict(file_path, file)
+
 
 class ConnectionPool:
     '''
@@ -1949,18 +2064,19 @@ class ConnectionPool:
         self.connections = {}
         self.dict_lock = threading.Semaphore(10)
 
-    def _open(self,db_name):
+    def _open(self, db_name):
         if db_name is None:
             logger.debug("Opening connection to in-memory db")
-            connection = sqlite3.connect(":memory:", 
+            connection = sqlite3.connect(":memory:",
                                          detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         else:
-            logger.debug("Opening connection to db %s" , db_name)
-            connection = sqlite3.connect(db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+            logger.debug("Opening connection to db %s", db_name)
+            connection = sqlite3.connect(
+                db_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         connection.row_factory = sqlite3.Row
         return connection
 
-    def get_connection(self,db_name,writeable,conn_id=None):
+    def get_connection(self, db_name, writeable, conn_id=None):
         '''
         Acquire a new connection and raise an exception if none is available
         '''
@@ -1971,20 +2087,23 @@ class ConnectionPool:
             with self.dict_lock:
                 if not conn_id in self.connections:
                     if len(self.connections) > self.POOL_MAX_DATABASES:
-                        raise self.ConnectionError("Too many databases in connection pool.")
+                        raise self.ConnectionError(
+                            "Too many databases in connection pool.")
                     logger.debug(f"Setting up pool for {conn_id}")
-                    self.connections[conn_id]={"writer":threading.Semaphore(1)}     
-            logger.debug("Acquiring writer.") 
-            if not(self.connections[conn_id]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT)):
-                raise self.ConnectionError(f"Unable to acquire pocketsearch writer (Timed out) for {conn_id}")
+                    self.connections[conn_id] = {
+                        "writer": threading.Semaphore(1)}
+            logger.debug("Acquiring writer.")
+            if not self.connections[conn_id]["writer"].acquire(timeout=self.POOL_CONNECTION_TIMEOUT):
+                raise self.ConnectionError(
+                    f"Unable to acquire pocketsearch writer (Timed out) for {conn_id}")
         return self._open(db_name)
 
-    def release_connection(self, db_name , connection, writeable,conn_id=None):
+    def release_connection(self, db_name, connection, writeable, conn_id=None):
         '''
         Release the given connection
         '''
         if db_name is not None:
-            conn_id = db_name        
+            conn_id = db_name
         if not self._is_valid_connection(connection):
             connection.close()
         if writeable:
