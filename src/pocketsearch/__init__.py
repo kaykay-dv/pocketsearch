@@ -1649,8 +1649,7 @@ class PocketSearch:
             # We will create a contentless fts5 virtual table:
             self._check_fields()
             managed, content = mgmt_type
-        sql_table = f"CREATE TABLE IF NOT EXISTS {
-            index_name}({standard_fields})"
+        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields},
             content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
