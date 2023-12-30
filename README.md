@@ -30,7 +30,7 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
 
-Open a search index using a PocketReader:
+Open a search index using a PocketReader to perform searches:
 
 ```Python
 import pocketsearch
