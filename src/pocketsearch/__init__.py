@@ -1612,8 +1612,7 @@ class PocketSearch:
                         f"'{field}' is present in the schema but has not been defined in the legacy table.")
                 if definition.data_type != fields[field]:
                     legacy_definition = fields[field]
-                    raise self.DatabaseError(f"'{field}' has data type '
-                                             {definition.data_type}' in schema but '{legacy_definition}' was expected.")
+                    raise self.DatabaseError(f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
         return True
 
     def _create_table(self, index_name):
