@@ -1655,8 +1655,8 @@ class PocketSearch:
             content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
         '''
         # aux tables
-        sql_aux_table = f"CREATE VIRTUAL TABLE IF NOT EXISTS {
-            index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');"
+        sql_aux_table = f'''CREATE VIRTUAL TABLE IF NOT EXISTS {
+            index_name}_fts_v USING fts5vocab('{index_name}_fts', 'row');'''
         # Trigger definitions:
         old_cols = ", ".join(["old.%s" % field.to_sql(index_table=True)
                              for field in fields if field.fts_enabled()])
@@ -1694,8 +1694,8 @@ class PocketSearch:
         if table_exists:
             if not managed:
                 # Index existing data, this will be executed only once
-                sql_index_data = f"INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {
-                    fts_fields} FROM {index_name}"
+                sql_index_data = f'''INSERT INTO {index_name}_fts (rowid, {fts_fields}) SELECT ROWID, {
+                    fts_fields} FROM {index_name}'''
                 logger.debug(sql_index_data)
                 self.cursor.execute(sql_index_data)
                 self.cursor.execute(
