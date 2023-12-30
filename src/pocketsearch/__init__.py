@@ -1751,8 +1751,8 @@ class PocketSearch:
             for lookup in lookups:
                 for name in lookup.names:
                     if not name in LOOKUPS:
-                        raise self.FieldError(f"Unknown lookup: '{
-                                              name}' in field '{f}'")
+                        raise self.FieldError(f"""Unknown lookup: '{
+                                              name}' in field '{f}'""")
         arguments = {}
         for field in self.schema:
             if field.name not in referenced_fields and not (for_search) and field.name not in [id_field, "rank"]:
