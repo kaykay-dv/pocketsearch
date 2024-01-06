@@ -1,5 +1,8 @@
 # Change log
 
+## Version 0.21.1
+* Added more examples to README
+
 ## Version 0.21.0
 * Added support for having multiple connections to in-memory databases (https://github.com/kaykay-dv/pocketsearch/issues/54 and https://github.com/kaykay-dv/pocketsearch/issues/56)
 * Added more stable support when using punctuation characters in queries (https://github.com/kaykay-dv/pocketsearch/issues/55)

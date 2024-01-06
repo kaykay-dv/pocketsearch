@@ -4,13 +4,12 @@ pocketsearch is a pure-Python full text indexing search library based on sqlite 
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
 - Multi-field indices using schemas including text, numeric and date/datetime search
 - Prefix, phrase and initial token queries
-- Spell checking and query auto correction
+- Spell checking
 - Boolean search queries
 - Highlightning search results and extracting snippets
 - Autocomplete features
 
-It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
-3.9, 3.10, 3.11 and Python 3.12
+Pocketsearch does not have any dependencies other than Python (3.8 or higher) itself. 
 
 # Quick start
 
@@ -20,7 +19,7 @@ Install using PIP:
 pip install pocketsearch
 ```
 
-to install the package.
+Pocketsearch requires Python 3.8 or higher.
 
 Create an search index using a PocketWriter and store it to my_db.db:
 
@@ -30,13 +29,34 @@ with pocketsearch.PocketWriter(db_name="my_db.db") as pocket_writer:
     pocket_writer.insert(text="Hello world")
 ```
 
-Open a search index using a PocketReader to perform searches:
+Open the search index using a PocketReader to perform searches:
 
 ```Python
 import pocketsearch
 with pocketsearch.PocketReader(db_name="my_db.db") as pocket_reader:
     for result in pocket_reader.search(text="Hello world"):
         print(result.text)
+```
+
+You can define custom schemas to create multi-field indices:
+
+```Python
+import pocketsearch as ps
+
+class Product(ps.Schema):
+
+    price = ps.Int()
+    description = ps.Text(index=True) # part of full text (FT) index
+    category = ps.Text()  # not part of FT index
+
+with ps.PocketWriter(db_name="my_db.db",schema=Product) as pocket_writer:
+    pocket_writer.insert(description="Apple",category="Fruit",price=3.21)
+    pocket_writer.insert(description="Orange",category="Fruit",price=4.11)
+
+with ps.PocketReader(db_name="my_db.db",schema=Product) as pocket_reader:
+    # Search for products with a price greater than or equal 3:
+    print(pocket_reader.search(price__gte=3).count())
+
 ```
 
 Read the complete documentation at https://pocketsearch.readthedocs.io/
