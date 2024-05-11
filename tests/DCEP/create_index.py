@@ -22,7 +22,7 @@ if not(os.path.exists("data")):
 
 # Index directories:
 reader = pocketsearch.FileSystemReader(base_dir=".")
-with pocketsearch.PocketWriter(db_name="data/index2.db",schema=reader.FSSchema) as writer:
+with pocketsearch.PocketWriter(db_name="data/index.db",schema=reader.FSSchema) as writer:
     writer.build(reader,verbose=True)
     print("Building spell checker index")
     writer.spell_checker().build()

@@ -1,11 +1,9 @@
 import pocketsearch
 import time
 
-with pocketsearch.PocketReader(db_name="data/index2.db",
+with pocketsearch.PocketReader(db_name="data/index.db",
                                schema=pocketsearch.FileSystemReader.FSSchema) as reader:
     count = reader.search().count()
-    for token in reader.tokens():
-        print(token)
     while True:
         inp  = input(f"DCEP Search - {count} documents (CTRL+C to quit)> ")
         start=time.time()
