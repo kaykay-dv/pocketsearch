@@ -9,7 +9,7 @@ pocketsearch is a pure-Python full text indexing search library based on SQLite 
 - Highlightning search results and extracting snippets
 - Autocomplete features
 
-Pocketsearch does not have any dependencies other than Python (3.8 or higher). 
+Pocketsearch does not have any dependencies other than Python (3.8 or higher) itself. 
 
 # Quick start
 
@@ -58,6 +58,12 @@ with ps.PocketReader(db_name="my_db.db",schema=Product) as pocket_reader:
 ```
 
 Read the complete documentation at https://pocketsearch.readthedocs.io/
+
+# Use cases
+
+pocketsearch is intended for projects looking for a server-less, seamless integration into existing Python projects with low to medium-sized document collections. 
+
+Please refer to https://github.com/kaykay-dv/pocketsearch/tree/main/tests/DCEP to see how pocketsearch can be used to index more than 160,000 documents. 
 
 
 # Status
