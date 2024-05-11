@@ -1710,12 +1710,12 @@ class PocketSearch:
         logger.debug("Commiting transaction")
         self.cursor.execute("commit")
 
-    def tokens(self):
+    def tokens(self,top_n=25):
         '''
         Return token statistics on the current index
         '''
         sql = f"""select term as token, doc as num_documents,
-        cnt as total_count from {self.index_name}_fts_v order by total_count desc"""
+        cnt as total_count from {self.index_name}_fts_v order by total_count desc LIMIT {top_n}"""
         self.cursor.execute(sql)
         row = self.cursor.fetchone()
         while row is not None:
@@ -1763,13 +1763,16 @@ class PocketSearch:
                     field, referenced_fields[field.name])
         return arguments
 
-    def build(self, index_reader):
+    def build(self, index_reader,verbose=False):
         '''
         Create an index reading a document from an index_builder instance.
         '''
+        timer = Timer()
         self.assure_writeable()
         for elem in index_reader.read():
             self.insert_or_update(**elem)
+            if verbose:
+                timer.snapshot()            
 
     def insert_or_update(self, **kwargs):
         '''
@@ -1777,20 +1780,27 @@ class PocketSearch:
         '''
         self.assure_writeable()
         if self.schema.id_field is None:
-            raise self.DatabaseError("""No IDFIeld has been defined in the schema -
+            raise self.DatabaseError("""No IDField has been defined in the schema -
                                      cannot perform insert_or_update.""")
         arguments = self.get_arguments(kwargs, for_search=False)
         joined_fields = ",".join(arguments)
         values = [argument.lookups[0].value for argument in arguments.values()]
+        # get rowid:
+        unique_id = (kwargs.get(self.schema.id_field),)
+        sql = f"select rowid from {self.index_name} where {self.schema.id_field} = ?"
+        self.cursor.execute(sql,unique_id)
+        row = self.cursor.fetchone()    
+        if row is not None:   
+            joined_fields = "rowid," + joined_fields
+            values = [row["id"]] + values
         placeholder_values = "?" * len(values)
-        sql = "insert or replace into %s (%s) values (%s)" % (self.schema.name,
-                                                              joined_fields,
-                                                              ",".join(placeholder_values))
+        sql = "replace into %s (%s) values (%s)" % (self.schema.name,
+                                                    joined_fields,
+                                                    ",".join(placeholder_values))
         try:
             self.cursor.execute(sql, values)
         except Exception as sql_error:
             raise self.DatabaseError(sql_error)
-        # self.connection.commit()
 
     def commit(self):
         '''
@@ -2017,6 +2027,7 @@ class FileSystemReader(IndexReader):
         text = Text(index=True)
 
     def __init__(self, base_dir="./", file_extensions=None):
+        self.timer = Timer()
         if file_extensions is None:
             self.file_extensions = [".txt"]
         else:
