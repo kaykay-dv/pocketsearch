@@ -1,5 +1,12 @@
 # Change log
 
+## Version 0.30.0
+* Fixed buggy insert_or_update method resulting in faulty token statistics - (https://github.com/kaykay-dv/pocketsearch/issues/60)
+* Added documentation on IndexReader class - added verbose parameter (default=False) to .build method - (https://github.com/kaykay-dv/pocketsearch/issues/61 and https://github.com/kaykay-dv/pocketsearch/issues/59)
+
+**Breaking changes**
+* PocketSearch.tokens method only returns the top 25 tokens by default instead of all tokens in the index - (https://github.com/kaykay-dv/pocketsearch/issues/62)
+
 ## Version 0.21.1
 * Added more examples to README
 
