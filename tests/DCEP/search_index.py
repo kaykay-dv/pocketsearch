@@ -14,4 +14,4 @@ with pocketsearch.PocketReader(db_name="data/index.db",
         if hits == 0:
             print("Did you mean: %s" % reader.suggest(inp))
         for item in reader.search(text=inp).snippet("text"):
-            print(item.filename,":",item.text)
+            print(item.filename[-10:],":",item.text.replace("\n"," "))
