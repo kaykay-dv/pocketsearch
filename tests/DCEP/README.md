@@ -24,6 +24,11 @@ You can then use the **search_index.py** script to interactivley search the gene
 
 ```bash
 (venv) % python search_index.py
+```
+
+You can can then type in terms to search for - use CTRL+C to quit.
+
+```bash
 DCEP Search - 162608 documents (CTRL+C to quit)> commission
 Counting took 0.12 s
 Found 141669 hits for commission:
