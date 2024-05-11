@@ -19,8 +19,6 @@ Install using PIP:
 pip install pocketsearch
 ```
 
-Pocketsearch requires Python 3.8 or higher.
-
 Create a search index using a PocketWriter and store it to database my_db.db:
 
 ```Python
