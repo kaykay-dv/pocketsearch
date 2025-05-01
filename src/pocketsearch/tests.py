@@ -16,7 +16,7 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import PocketSearch, PocketReader, PocketWriter, Schema, ConnectionPool, connection_pool
+from pocketsearch import PocketSearch, PocketReader, PocketWriter, Schema, ConnectionPool, connection_pool, normalize
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
@@ -1067,7 +1067,7 @@ class CharacterTest(unittest.TestCase):
             "ˌrʌnɚ",
             "'x'"
         ]
-        self.pocket_search = PocketSearch(writeable=True)
+        self.pocket_search = PocketSearch(writeable=True,normalize=normalize)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
@@ -1122,19 +1122,25 @@ class CharacterTest(unittest.TestCase):
         '''
         Test searching for abbrevated terms.
         '''
-        self.assertEqual(self.pocket_search.search(text="u s a").count(), 1)
+        self.assertEqual(self.pocket_search.search(text="u s a").count(), 0)
 
     def test_search_punctuation2(self):
         '''
-        The search for USA should fail in this case.
+        The search for USA should work as normalization would remove the punctuation.
         '''
-        self.assertEqual(self.pocket_search.search(text="usa").count(), 0)
+        self.assertEqual(self.pocket_search.search(text="usa").count(), 1)
 
     def test_search_punctuation3(self):
         '''
-        The search for U.S.A. instead should work.
+        The search for U.S.A. should also work - the punctuation is removed from the query.
         '''
         self.assertEqual(self.pocket_search.search(text="u.s.a").count(), 1)
+
+    def test_search_punctuation4(self):
+        '''
+        The search for u.s.a. (lower case) should also work - the punctuation is removed from the query.
+        '''
+        self.assertEqual(self.pocket_search.search(text="u.s.a.").count(), 1)
 
     def test_quoting(self):
         '''
