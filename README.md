@@ -68,7 +68,7 @@ Use QuickPocket to run the whole search index in-memory:
 import pocketsearch
 with pocketsearch.QuickPocket() as index:
     index.insert(text="Hello world !")
-    self.assertEqual(index.search(text="world").count(),1)
+    print(index.search(text="world").count())
 ```
 
 Once the context manager is closed, the database will disappear too. 
