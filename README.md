@@ -1,5 +1,6 @@
 # pocketsearch
-pocketsearch is a pure-Python full text indexing search library based on SQLite and the [FTS5](https://www.sqlite.org/fts5.html) extension. It provides
+
+A pure-Python full-text indexing search library based on SQLite and the [FTS5](https://www.sqlite.org/fts5.html) extension, supporting both on-disk and in-memory search indexes.
 
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
 - Multi-field indices using schemas including text, numeric and date/datetime search
@@ -59,6 +60,28 @@ with ps.PocketReader(db_name="my_db.db",schema=Product) as pocket_reader:
 
 Read the complete documentation at https://pocketsearch.readthedocs.io/
 
+# In-memory search index
+
+Use QuickPocket to run the whole search index in-memory:
+
+```Python
+import pocketsearch
+with pocketsearch.QuickPocket() as index:
+    index.insert(text="Hello world !")
+    print(index.search(text="world").count())
+```
+
+Once the context manager is closed, the database will disappear too. 
+
+You can use the PocketSearch class directly if you prefer:
+
+```Python
+import pocketsearch
+index = pocketsearch.PocketSearch()
+index.insert(text="Hello world !")
+print(index.search(text="world").count())
+```
+
 # Use cases
 
 pocketsearch is intended for projects looking for a server-less, seamless integration into existing Python projects with low to medium-sized document collections. 
@@ -67,7 +90,7 @@ Please refer to https://github.com/kaykay-dv/pocketsearch/tree/main/tests/DCEP t
 
 
 # Status
-The package is currently in Beta status.
+The package is actively maintained as of May 2025.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)

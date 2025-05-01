@@ -1,5 +1,11 @@
 # Change log
 
+## Version 0.40.0
+* Fixed a bug when providing integer search arguments - (https://github.com/kaykay-dv/pocketsearch/issues/66)
+* Introduced "QuickPocket" for in-memory search indices
+* Added Python 3.13 support
+* Added support for normalization functions; a normalization function can now be applied before text is added to the search index. - (https://github.com/kaykay-dv/pocketsearch/issues/64)
+
 ## Version 0.30.0
 * Fixed buggy insert_or_update method resulting in faulty token statistics - (https://github.com/kaykay-dv/pocketsearch/issues/60)
 * Added documentation on IndexReader class - added verbose parameter (default=False) to .build method - (https://github.com/kaykay-dv/pocketsearch/issues/61 and https://github.com/kaykay-dv/pocketsearch/issues/59)

@@ -6,7 +6,7 @@
 Welcome to pocketsearch's documentation!
 ========================================
 
-pocketsearch is a pure-Python full text indexing search library based on sqlite and its `FTS5 extension <https://www.sqlite.org/fts5.html>`_.
+pocketsearch is a pure-Python full text indexing search library based on sqlite and its `FTS5 extension <https://www.sqlite.org/fts5.html>`_ supporting both on-disk and in-memory search indexes.
 
 It provides
 
@@ -18,8 +18,7 @@ It provides
 - Highlightning search results and extracting snippets
 - Autocomplete features
 
-It does not have any external dependencies other than Python itself. pocketsearch has been tested on Python 3.8, 
-3.9, 3.10 and 3.11.
+It does not have any external dependencies other than Python itself. pocketsearch requires Python 3.8 or higher.
 
 .. toctree::
    :maxdepth: 2

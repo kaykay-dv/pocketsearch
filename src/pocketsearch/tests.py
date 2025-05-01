@@ -16,7 +16,9 @@ import tempfile
 import datetime
 import logging
 
-from pocketsearch import PocketSearch, PocketReader, PocketWriter, Schema, ConnectionPool, connection_pool
+import pocketsearch
+
+from pocketsearch import PocketSearch, PocketReader, PocketWriter, Schema, ConnectionPool, connection_pool, normalize
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
 from pocketsearch import Query, Q
@@ -1046,6 +1048,15 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(
             text="tokenization@test.test").count(), 1)
 
+class QuickPocketTests(unittest.TestCase):
+    '''
+    Tests for in-memory databases
+    '''
+
+    def test_create_inmemory_pocketsearch(self):
+        with pocketsearch.QuickPocket() as index:
+            index.insert(text="Hello world !")
+            self.assertEqual(index.search(text="world").count(),1)
 
 class CharacterTest(unittest.TestCase):
     '''
@@ -1067,7 +1078,7 @@ class CharacterTest(unittest.TestCase):
             "ˌrʌnɚ",
             "'x'"
         ]
-        self.pocket_search = PocketSearch(writeable=True)
+        self.pocket_search = PocketSearch(writeable=True,normalize=normalize)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
@@ -1122,19 +1133,40 @@ class CharacterTest(unittest.TestCase):
         '''
         Test searching for abbrevated terms.
         '''
-        self.assertEqual(self.pocket_search.search(text="u s a").count(), 1)
+        self.assertEqual(self.pocket_search.search(text="u s a").count(), 0)
+
+    def test_pocket_writer_normalize(self):
+        with PocketWriter(normalize=normalize) as writer:
+            writer.insert(text="U.S.A.")
+            self.assertEqual(writer.search(text="USA").count(),1)
+
+    def test_pocket_reader_normalize(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            with PocketWriter(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as writer:
+                writer.insert(text="U.S.A.")
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as reader:
+                self.assertEqual(reader.search(text="USA").count(),1)
+                self.assertEqual(reader.search(text="U.S.A.").count(),1)
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db")) as reader:
+                self.assertEqual(reader.search(text="U.S.A.").count(),0)            
 
     def test_search_punctuation2(self):
         '''
-        The search for USA should fail in this case.
+        The search for USA should work as normalization would remove the punctuation.
         '''
-        self.assertEqual(self.pocket_search.search(text="usa").count(), 0)
+        self.assertEqual(self.pocket_search.search(text="usa").count(), 1)
 
     def test_search_punctuation3(self):
         '''
-        The search for U.S.A. instead should work.
+        The search for U.S.A. should also work - the punctuation is removed from the query.
         '''
         self.assertEqual(self.pocket_search.search(text="u.s.a").count(), 1)
+
+    def test_search_punctuation4(self):
+        '''
+        The search for u.s.a. (lower case) should also work - the punctuation is removed from the query.
+        '''
+        self.assertEqual(self.pocket_search.search(text="u.s.a.").count(), 1)
 
     def test_quoting(self):
         '''
