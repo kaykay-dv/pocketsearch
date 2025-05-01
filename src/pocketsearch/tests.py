@@ -1124,6 +1124,21 @@ class CharacterTest(unittest.TestCase):
         '''
         self.assertEqual(self.pocket_search.search(text="u s a").count(), 0)
 
+    def test_pocket_writer_normalize(self):
+        with PocketWriter(normalize=normalize) as writer:
+            writer.insert(text="U.S.A.")
+            self.assertEqual(writer.search(text="USA").count(),1)
+
+    def test_pocket_reader_normalize(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            with PocketWriter(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as writer:
+                writer.insert(text="U.S.A.")
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as reader:
+                self.assertEqual(reader.search(text="USA").count(),1)
+                self.assertEqual(reader.search(text="U.S.A.").count(),1)
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db")) as reader:
+                self.assertEqual(reader.search(text="U.S.A.").count(),0)            
+
     def test_search_punctuation2(self):
         '''
         The search for USA should work as normalization would remove the punctuation.

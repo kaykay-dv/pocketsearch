@@ -42,6 +42,36 @@ Unicode61(tokenchars="@")
 Please consult [the chapter on tokenization](https://www.sqlite.org/fts5.html#unicode61_tokenizer) in FTS5 to gain a deeper 
 understanding on how the categories and separators option can be used.
 
+## Normalization
+
+It is currently not possible to implement your own tokenizer using Python code as FTS5 tokenizers are written in C. 
+However you can provide a normalization function to preprocess the text that should be indexed. 
+
+Consider the example of indexing "E.U". The unicode61 tokenizer treats "." as token character and will index "E" and "U" 
+separatly. As a result, a search for "EU" will not return any results. 
+
+As we cannot change the tokenize, we can normalize the text before it is inserted into the index. pocketsearch provides 
+a default normalization function that will handle abbrevations by removing punctiation before the text is inserted into 
+the index:
+
+```Python
+import pocketsearch
+with pocketsearch.PocketWriter(normalize=pocketsearch.normalize) as writer:
+    # The normalize function will remove the punctuation in abbrevations
+    writer.insert(text="U.S.A.")
+    # Now this search works:
+    self.assertEqual(writer.search(text="USA").count(),1)
+```
+
+If you want to perform your own normalization you can provide your own function instead. 
+The signature of the function is:
+
+```Python
+def normalize(value):
+    # do some normalization:
+    normalized_value = value.lower()
+    return normalized_value
+```
 
 ## Index meta data
 

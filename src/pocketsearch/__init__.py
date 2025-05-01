@@ -8,6 +8,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
 import threading
+import types
 import re
 import datetime
 import sqlite3
@@ -1282,9 +1283,9 @@ class PocketContextManager(abc.ABC):
 
     def __init__(self, db_name=None,
                  index_name="documents",
-                 schema=DefaultSchema):
+                 schema=DefaultSchema,normalize=None):
         self.pocketsearch = PocketSearch(
-            index_name=index_name, db_name=db_name, schema=schema)
+            index_name=index_name, db_name=db_name, schema=schema,normalize=normalize)
 
     def __enter__(self, *args, **kwargs):
         return self.pocketsearch
@@ -1308,12 +1309,14 @@ class PocketWriter(PocketContextManager):
 
     def __init__(self, db_name=None,
                  index_name="documents",
-                 schema=DefaultSchema):
+                 schema=DefaultSchema,
+                 normalize=None):
         self.pocketsearch = PocketSearch(
             index_name=index_name,
             db_name=db_name,
             schema=schema,
-            writeable=True
+            writeable=True,
+            normalize=normalize
         )
         self.pocketsearch.execute_sql("begin")
 
@@ -1321,7 +1324,6 @@ class PocketWriter(PocketContextManager):
         if exc_type is None:
             if self.pocketsearch.schema._meta.spell_check:
                 logger.debug("Building spell checking dictionary")
-                # self.pocketsearch._get_or_create_spellchecker_instance().build()
             self.pocketsearch.execute_sql("commit")
         else:
             logger.exception(exc_traceback)
@@ -1468,6 +1470,8 @@ class PocketSearch:
         self.db_id = uuid.uuid4()
         self.connection = None
         self.normalize = normalize
+        if self.normalize is not None and not(isinstance(self.normalize, types.FunctionType)):
+            raise ValueError("normalize must be a function.")
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
             self.writeable = True
