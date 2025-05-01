@@ -16,6 +16,8 @@ import tempfile
 import datetime
 import logging
 
+import pocketsearch
+
 from pocketsearch import PocketSearch, PocketReader, PocketWriter, Schema, ConnectionPool, connection_pool, normalize
 from pocketsearch import Text, Int, Real, Blob, Field, Datetime, Date, IdField
 from pocketsearch import Unicode61
@@ -1046,6 +1048,15 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(
             text="tokenization@test.test").count(), 1)
 
+class QuickPocketTests(unittest.TestCase):
+    '''
+    Tests for in-memory databases
+    '''
+
+    def test_create_inmemory_pocketsearch(self):
+        with pocketsearch.QuickPocket() as index:
+            index.insert(text="Hello world !")
+            self.assertEqual(index.search(text="world").count(),1)
 
 class CharacterTest(unittest.TestCase):
     '''

@@ -195,7 +195,7 @@ class Unicode61(Tokenizer):
         automatically quoted.
         '''
         output_str = ""
-        for character in input_str:
+        for character in str(input_str):
             if character in keep:
                 output_str += character
                 continue
@@ -1293,6 +1293,13 @@ class PocketContextManager(abc.ABC):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.pocketsearch.close()
 
+class QuickPocket(PocketContextManager):
+    '''
+    In-memory search index
+    '''
+
+    def __init__(self,schema=DefaultSchema,normalize=None):
+        self.pocketsearch = PocketSearch(schema=schema,normalize=normalize)        
 
 class PocketReader(PocketContextManager):
     '''
