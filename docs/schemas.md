@@ -41,7 +41,7 @@ Following fields are available:
 Following options are available for fields:
 
 * **index** - if the field is a Text field, a full text search index is created, otherwise a standard sqlite3 index is created
-* **is_id_field** - a schema can **optionally** be flagged as IDField. This is not the internal id of a document in an index, but 
+* **is_id_field** - a field can **optionally** be flagged as IDField. This is not the internal id of a document in an index, but 
 can be used to track unique ids coming from external data sources. For instance, if you are indexing files, you can flag the 
 file name in your index as id field. It is used by the .insert_or_update method to decide if a document should be 
 inserted or an existing document should be updated.
