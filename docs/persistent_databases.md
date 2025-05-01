@@ -1,44 +1,6 @@
-# Reading and writing search indices
-
-By default, a pocketsearch instance is created in-memory. If you want to store 
-your database on disk you have to provide a filename for the database and provide the writeable keyword argument:
-
-```Python
-pocket_search = PocketSearch(db_name="my_db.db",writeable=True)
-pocket_search.insert(text="Hello world")
-pocket_search.close()
-```
-
-Invoking the .close method will commit any unwritten changes to the index and close 
-the database connection to the index. If you want to keep the connection open and 
-commit changes use
-
-```Python
-pocket_search.commit()
-```
-
-If you want to open the database at a later stage for searching open it in 
-read-only mode:
-
-```Python
-pocket_search = PocketSearch(db_name="my_db.db")
-pocket_search.search(text="Hello world")
-```
-
-or making it explicit:
-
-```Python
-pocket_search = PocketSearch(db_name="my_db.db",writeable=False)
-pocket_search.search(text="Hello world")
-```
-
-Be aware that any attempt to write to a search index opened in read-only mode will 
-result in an exception.
-
 ## PocketReader and PocketWriter classes
 
-The **preferred way** to handle writing and reading search indices is to use the PocketReader
-and PocketWriter context manager classes:
+Use the PocketReader and PocketWriter context manager classes to create on-disk search indexes.
 
 ### Writing to an index
 
