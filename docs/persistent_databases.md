@@ -19,8 +19,7 @@ Note that PocketWriter instances may run in a time-out when waiting more than 5 
 
 ### Reading from an index
 
-In the same way you can create a PocketReader instance to interact with the search 
-index in read-only mode:
+In the same way you can create a PocketReader instance to interact with the search  index in read-only mode:
 
 ```Python
 from pocketsearch import PocketReader

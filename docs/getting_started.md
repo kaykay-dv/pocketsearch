@@ -11,12 +11,24 @@ with pocketsearch.QuickPocket() as index:
         print(document.text)
 ```
 
+Once the context manager is closed, the database will disappear too. 
+
+You can use the PocketSearch class directly if you prefer:
+
+```Python
+import pocketsearch
+index = pocketsearch.PocketSearch()
+index.insert(text="Hello world !")
+for document in index.search(text="world"):
+    print(document.text)
+```
+
 Be aware that the search methods limits results to 10 by default. Results 
 are ordered by the rank of the search result which is calculated by the 
 FTS extension in sqlite (see the [B25 function](https://www.sqlite.org/fts5.html#the_bm25_function) for more details) 
 showing how relevant a document is to a given query. 
 
-There is  support for slicing:
+There is support for slicing:
 
 ```Python
 # returns the first three results

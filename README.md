@@ -73,6 +73,15 @@ with pocketsearch.QuickPocket() as index:
 
 Once the context manager is closed, the database will disappear too. 
 
+You can use the PocketSearch class directly if you prefer:
+
+```Python
+import pocketsearch
+index = pocketsearch.PocketSearch()
+index.insert(text="Hello world !")
+print(index.search(text="world").count())
+```
+
 # Use cases
 
 pocketsearch is intended for projects looking for a server-less, seamless integration into existing Python projects with low to medium-sized document collections. 
