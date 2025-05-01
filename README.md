@@ -1,6 +1,7 @@
 # pocketsearch
 pocketsearch is a pure-Python full text indexing search library based on SQLite and the [FTS5](https://www.sqlite.org/fts5.html) extension. It provides
 
+- In-memory or on-disk search indices
 - A simple API (inspired by the ORM layer of the Django web framework) for defining schemas and searching - no need to write SQL
 - Multi-field indices using schemas including text, numeric and date/datetime search
 - Prefix, phrase and initial token queries
