@@ -1078,7 +1078,7 @@ class CharacterTest(unittest.TestCase):
             "ˌrʌnɚ",
             "'x'"
         ]
-        self.pocket_search = PocketSearch(writeable=True,normalize=normalize)
+        self.pocket_search = PocketSearch(writeable=True,normalize_func=normalize)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
@@ -1136,15 +1136,15 @@ class CharacterTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.search(text="u s a").count(), 0)
 
     def test_pocket_writer_normalize(self):
-        with PocketWriter(normalize=normalize) as writer:
+        with PocketWriter(normalize_func=normalize) as writer:
             writer.insert(text="U.S.A.")
             self.assertEqual(writer.search(text="USA").count(),1)
 
     def test_pocket_reader_normalize(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            with PocketWriter(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as writer:
+            with PocketWriter(db_name=os.path.join(tmpdirname,"index.db"),normalize_func=normalize) as writer:
                 writer.insert(text="U.S.A.")
-            with PocketReader(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as reader:
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db"),normalize_func=normalize) as reader:
                 self.assertEqual(reader.search(text="USA").count(),1)
                 self.assertEqual(reader.search(text="U.S.A.").count(),1)
             with PocketReader(db_name=os.path.join(tmpdirname,"index.db")) as reader:
