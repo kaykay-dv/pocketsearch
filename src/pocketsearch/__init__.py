@@ -904,7 +904,7 @@ class SQLQuery:
             self.v_select.clear()
         self.v_select.append(Select(field=field, sql_query=self))
 
-    def highlight(self, field, marker_start, marker_end):
+    def highlight(self, field, marker_start, marker_end) -> SearchResult:
         '''
         Marks given field for highlightening results
         '''
@@ -1466,10 +1466,10 @@ class PocketSearch:
         Helper class to store lookups for a specific field
         '''
 
-        def __init__(self, names, value, normalize=None):
+        def __init__(self, names, value, normalize_func=None):
             self.names = names
-            if isinstance(value, str) and normalize:
-                self.value = normalize(value)
+            if isinstance(value, str) and normalize_func:
+                self.value = normalize_func(value)
             else:
                 self.value = value
 
@@ -1681,7 +1681,8 @@ class PocketSearch:
             # We will create a contentless fts5 virtual table:
             self._check_fields()
             managed, content = mgmt_type
-        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
+        sql_table = f"CREATE TABLE IF NOT EXISTS {
+            index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields},
             content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
@@ -1772,10 +1773,10 @@ class PocketSearch:
                     raise self.FieldError(
                         "Lookups are not allowed in the context of inserts and updates")
                 referenced_fields[comp[0]].append(
-                    self.Lookup(comp[1:], kwargs[kwarg], normalize=normalize))
+                    self.Lookup(comp[1:], kwargs[kwarg], normalize_func=normalize))
             else:
                 referenced_fields[comp[0]].append(
-                    self.Lookup(["eq"], kwargs[kwarg], normalize=normalize))
+                    self.Lookup(["eq"], kwargs[kwarg], normalize_func=normalize))
         for f, lookups in referenced_fields.items():
             if f not in self.schema.fields:
                 raise self.FieldError(
@@ -1820,7 +1821,8 @@ class PocketSearch:
         values = [argument.lookups[0].value for argument in arguments.values()]
         # get rowid:
         unique_id = (kwargs.get(self.schema.id_field),)
-        sql = f"select rowid from {self.index_name} where {self.schema.id_field} = ?"
+        sql = f"select rowid from {self.index_name} where {
+            self.schema.id_field} = ?"
         self.cursor.execute(sql, unique_id)
         row = self.cursor.fetchone()
         if row is not None:
@@ -1937,7 +1939,7 @@ class PocketSearch:
         self.cursor.execute(sql)
         # self.commit()
 
-    def autocomplete(self, *args, **kwargs):
+    def autocomplete(self, *args, **kwargs) -> SearchResult:
         '''
         Constructs a query against a given field that performs auto-complete
         (thus, predicting what the rest of a word is a user types in).
@@ -1998,7 +2000,7 @@ class PocketSearch:
                     cleared_kwargs[k] = '""'
         return cleared_kwargs
 
-    def search(self, *args, **kwargs):
+    def search(self, *args, **kwargs) -> SearchResult:
         '''
         Initiate search in index
         '''
