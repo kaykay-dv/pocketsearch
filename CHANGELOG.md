@@ -1,5 +1,9 @@
 # Change log
 
+## Version 0.41.0
+* Removed support for Python 3.8 
+* Added support for Python 3.14
+
 ## Version 0.40.0
 * Fixed a bug when providing integer search arguments - (https://github.com/kaykay-dv/pocketsearch/issues/66)
 * Introduced "QuickPocket" for in-memory search indices
