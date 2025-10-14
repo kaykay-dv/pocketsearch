@@ -444,7 +444,7 @@ class TransactionTests(unittest.TestCase):
             try:
                 with PocketWriter(db_name=db_name) as writer:
                     writer.delete(rowid=1)
-                    raise ZeroDivisionError()
+                    0 / 0
             except ZeroDivisionError:
                 with PocketReader(db_name=db_name) as reader:
                     self.assertEqual(reader.search().count(), 2)
@@ -476,7 +476,7 @@ class TransactionTests(unittest.TestCase):
             try:
                 with PocketWriter(db_name=db_name) as writer:
                     writer.delete_all()
-                    raise ZeroDivisionError()
+                    0 / 0
             except ZeroDivisionError:
                 with PocketReader(db_name=db_name) as reader:
                     self.assertEqual(reader.search().count(), 1)
@@ -555,15 +555,15 @@ class IndexTest(BaseTest):
 
     def test_slicing_open(self):
         with self.assertRaises(Query.QueryError):
-            self.pocket_search.search(text="is")[0:]
+            results = self.pocket_search.search(text="is")[0:]
 
     def test_negative_slicing_start(self):
         with self.assertRaises(Query.QueryError):
-            self.pocket_search.search(text="is")[-1:]
+            results = self.pocket_search.search(text="is")[-1:]
 
     def test_negative_slicing_end(self):
         with self.assertRaises(Query.QueryError):
-            self.pocket_search.search(text="is")[:-4]
+            results = self.pocket_search.search(text="is")[:-4]
 
     def test_start_stop_none(self):
         with self.assertRaises(Query.QueryError):
@@ -790,7 +790,6 @@ class IndexUpdateTests(BaseTest):
         self.assertEqual(p.search(f1="a", f2="b").count(), 0)
         self.assertEqual(p.search(f1="c", f2="d").count(), 1)
         p.close()
-
 
 class EscapeTests(unittest.TestCase):
 
@@ -1049,7 +1048,6 @@ class TokenizerTests(unittest.TestCase):
         self.assertEqual(pocket_search.search(
             text="tokenization@test.test").count(), 1)
 
-
 class QuickPocketTests(unittest.TestCase):
     '''
     Tests for in-memory databases
@@ -1058,8 +1056,7 @@ class QuickPocketTests(unittest.TestCase):
     def test_create_inmemory_pocketsearch(self):
         with pocketsearch.QuickPocket() as index:
             index.insert(text="Hello world !")
-            self.assertEqual(index.search(text="world").count(), 1)
-
+            self.assertEqual(index.search(text="world").count(),1)
 
 class CharacterTest(unittest.TestCase):
     '''
@@ -1081,8 +1078,7 @@ class CharacterTest(unittest.TestCase):
             "ˌrʌnɚ",
             "'x'"
         ]
-        self.pocket_search = PocketSearch(
-            writeable=True, normalize_func=normalize)
+        self.pocket_search = PocketSearch(writeable=True,normalize=normalize)
         for elem in self.data:
             self.pocket_search.insert(text=elem)
 
@@ -1140,19 +1136,19 @@ class CharacterTest(unittest.TestCase):
         self.assertEqual(self.pocket_search.search(text="u s a").count(), 0)
 
     def test_pocket_writer_normalize(self):
-        with PocketWriter(normalize_func=normalize) as writer:
+        with PocketWriter(normalize=normalize) as writer:
             writer.insert(text="U.S.A.")
-            self.assertEqual(writer.search(text="USA").count(), 1)
+            self.assertEqual(writer.search(text="USA").count(),1)
 
     def test_pocket_reader_normalize(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            with PocketWriter(db_name=os.path.join(tmpdirname, "index.db"), normalize_func=normalize) as writer:
+            with PocketWriter(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as writer:
                 writer.insert(text="U.S.A.")
-            with PocketReader(db_name=os.path.join(tmpdirname, "index.db"), normalize_func=normalize) as reader:
-                self.assertEqual(reader.search(text="USA").count(), 1)
-                self.assertEqual(reader.search(text="U.S.A.").count(), 1)
-            with PocketReader(db_name=os.path.join(tmpdirname, "index.db")) as reader:
-                self.assertEqual(reader.search(text="U.S.A.").count(), 0)
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db"),normalize=normalize) as reader:
+                self.assertEqual(reader.search(text="USA").count(),1)
+                self.assertEqual(reader.search(text="U.S.A.").count(),1)
+            with PocketReader(db_name=os.path.join(tmpdirname,"index.db")) as reader:
+                self.assertEqual(reader.search(text="U.S.A.").count(),0)            
 
     def test_search_punctuation2(self):
         '''
@@ -1336,6 +1332,8 @@ class FieldTypeTests(unittest.TestCase):
 
     def test_search_dates_range(self):
         year = datetime.date.today().year
+        month = datetime.date.today().month
+        day = datetime.date.today().day
         self.assertEqual(self.pocket_search.search(
             f6__year__gte=year-1, f6__year__lte=year+1).count(), 1)
 
@@ -1482,7 +1480,7 @@ class SpellCheckerTest(unittest.TestCase):
                             'lInddjiana': [('indiana', 4), ('in', 8), ('again', 8)],
                             'th': [('the', 1)],
                             'writen': [('written', 1)]}
-                for token, _ in results.items():
+                for token, suggestions in results.items():
                     self.assertEqual(token in expected, True)
                     # self.assertEqual(expected[token]==suggestions[token],True)
                 # some edge cases
