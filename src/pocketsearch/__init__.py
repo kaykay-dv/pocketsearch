@@ -187,7 +187,7 @@ class Unicode61(Tokenizer):
         ch_category = unicodedata.category(character)
         return ch_category in categories or ch_category[0]+"*" in categories
 
-    def tokenize(self, input_str, keep=None):
+    def tokenize(self, input_str, keep=[]):
         '''
         Based on the settings of unicode61 tokenizer given, split the 
         input_str into individual tokens and return them as a list of 
@@ -197,8 +197,6 @@ class Unicode61(Tokenizer):
         When quote is set to True, tokens containing punctuation will be 
         automatically quoted.
         '''
-        if keep is None:
-            keep = []
         output_str = ""
         for character in str(input_str):
             if character in keep:
@@ -904,7 +902,7 @@ class SQLQuery:
             self.v_select.clear()
         self.v_select.append(Select(field=field, sql_query=self))
 
-    def highlight(self, field, marker_start, marker_end) -> SearchResult:
+    def highlight(self, field, marker_start, marker_end):
         '''
         Marks given field for highlightening results
         '''
@@ -1288,9 +1286,9 @@ class PocketContextManager(abc.ABC):
 
     def __init__(self, db_name=None,
                  index_name="documents",
-                 schema=DefaultSchema, normalize_func=None):
+                 schema=DefaultSchema, normalize=None):
         self.pocketsearch = PocketSearch(
-            index_name=index_name, db_name=db_name, schema=schema, normalize_func=normalize_func)
+            index_name=index_name, db_name=db_name, schema=schema, normalize=normalize)
 
     def __enter__(self, *args, **kwargs):
         return self.pocketsearch
@@ -1304,9 +1302,8 @@ class QuickPocket(PocketContextManager):
     In-memory search index
     '''
 
-    def __init__(self, schema=DefaultSchema, normalize_func=None):
-        self.pocketsearch = PocketSearch(
-            schema=schema, normalize_func=normalize_func)
+    def __init__(self, schema=DefaultSchema, normalize=None):
+        self.pocketsearch = PocketSearch(schema=schema, normalize=normalize)
 
 
 class PocketReader(PocketContextManager):
@@ -1325,13 +1322,13 @@ class PocketWriter(PocketContextManager):
     def __init__(self, db_name=None,
                  index_name="documents",
                  schema=DefaultSchema,
-                 normalize_func=None):
+                 normalize=None):
         self.pocketsearch = PocketSearch(
             index_name=index_name,
             db_name=db_name,
             schema=schema,
             writeable=True,
-            normalize_func=normalize_func
+            normalize=normalize
         )
         self.pocketsearch.execute_sql("begin")
 
@@ -1466,10 +1463,10 @@ class PocketSearch:
         Helper class to store lookups for a specific field
         '''
 
-        def __init__(self, names, value, normalize_func=None):
+        def __init__(self, names, value, normalize=None):
             self.names = names
-            if isinstance(value, str) and normalize_func:
-                self.value = normalize_func(value)
+            if isinstance(value, str) and normalize:
+                self.value = normalize(value)
             else:
                 self.value = value
 
@@ -1478,13 +1475,13 @@ class PocketSearch:
                  schema=DefaultSchema,
                  writeable=False,
                  connection=None,
-                 normalize_func=None):
+                 normalize=None):
         self.db_name = db_name
         self.schema = schema(index_name)
         self.db_name = db_name
         self.db_id = uuid.uuid4()
         self.connection = None
-        self.normalize = normalize_func
+        self.normalize = normalize
         if self.normalize is not None and not (isinstance(self.normalize, types.FunctionType)):
             raise ValueError("normalize must be a function.")
         if writeable or db_name is None:
@@ -1499,7 +1496,7 @@ class PocketSearch:
             else:
                 self.connection = connection
                 logger.debug(
-                    "Re-using existing database connection %s", connection)
+                    "Re-using existing database connection %s" % connection)
             self.cursor = self.connection.cursor()
             if self.writeable:
                 self._create_table(self.schema.name)
@@ -1524,7 +1521,7 @@ class PocketSearch:
 
     def _u_name(self):
         if self.db_name is None:
-            return f"::{self.db_id}"
+            return "::%s" % self.db_id
         return self.db_name
 
     def _open(self):
@@ -1551,13 +1548,13 @@ class PocketSearch:
         '''
         if not self.writeable:
             raise self.IndexError(
-                f"Index '{self.schema.name}' has been opened in read-only mode. Cannot write changes to index.")
+                "Index '{schema_name}' has been opened in read-only mode. Cannot write changes to index.".format(schema_name=self.schema.name))
 
     def execute_sql(self, sql, *args):
         '''
         Executes a raw sql query against the database. sql contains the query, *args the arguments.
         '''
-        logger.debug("sql=%s, args=%s", sql, args)
+        logger.debug("sql=%s,args=%s" % (f"{sql}", args))
         return self.cursor.execute(f"{sql}", args)
 
     def _populate_fts(self):
@@ -1565,12 +1562,12 @@ class PocketSearch:
         Manually populates the FTS5 virtual table with content found in 
         the index_name table.
         '''
-        for row in self.cursor.execute('select * from %s', self.index_name):
+        for row in self.cursor.execute('select * from %s' % self.index_name):
             params = {}
             for col in row.keys():
                 if col != "id":
                     params[col] = row[col]
-            self.insert(f"{self.index_name}_fts", **params)
+            self.insert("%s_fts" % self.index_name, **params)
 
     def _format_sql(self, index_name, fields, sql):
         '''
@@ -1643,8 +1640,8 @@ class PocketSearch:
                         f"'{field}' is present in the schema but has not been defined in the legacy table.")
                 if definition.data_type != fields[field]:
                     legacy_definition = fields[field]
-                    raise self.DatabaseError(
-                        f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
+                    raise self.DatabaseError(f"'{field}' has data type '{
+                                             definition.data_type}' in schema but '{legacy_definition}' was expected.")
         return True
 
     def _create_table(self, index_name):
@@ -1773,10 +1770,10 @@ class PocketSearch:
                     raise self.FieldError(
                         "Lookups are not allowed in the context of inserts and updates")
                 referenced_fields[comp[0]].append(
-                    self.Lookup(comp[1:], kwargs[kwarg], normalize_func=normalize))
+                    self.Lookup(comp[1:], kwargs[kwarg], normalize=normalize))
             else:
                 referenced_fields[comp[0]].append(
-                    self.Lookup(["eq"], kwargs[kwarg], normalize_func=normalize))
+                    self.Lookup(["eq"], kwargs[kwarg], normalize=normalize))
         for f, lookups in referenced_fields.items():
             if f not in self.schema.fields:
                 raise self.FieldError(
@@ -1939,7 +1936,7 @@ class PocketSearch:
         self.cursor.execute(sql)
         # self.commit()
 
-    def autocomplete(self, *args, **kwargs) -> SearchResult:
+    def autocomplete(self, *args, **kwargs):
         '''
         Constructs a query against a given field that performs auto-complete
         (thus, predicting what the rest of a word is a user types in).
@@ -2000,7 +1997,7 @@ class PocketSearch:
                     cleared_kwargs[k] = '""'
         return cleared_kwargs
 
-    def search(self, *args, **kwargs) -> SearchResult:
+    def search(self, *args, **kwargs):
         '''
         Initiate search in index
         '''
