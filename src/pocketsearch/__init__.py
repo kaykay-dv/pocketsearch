@@ -41,15 +41,12 @@ def convert_date(value):
 sqlite3.register_converter('timestamp', convert_timestamp)
 sqlite3.register_converter('date', convert_date)
 
-
 def normalize(value):
     '''
     Default text normalization.
     '''
-    value = re.sub(r'\b((?:[A-Za-z]\.){2,}(?:[A-Za-z]\.?)?)',
-                   lambda m: m.group(1).replace('.', ''), value)
+    value = re.sub(r'\b((?:[A-Za-z]\.){2,}(?:[A-Za-z]\.?)?)', lambda m: m.group(1).replace('.', ''), value)
     return value
-
 
 class Timer:
     '''
@@ -591,7 +588,7 @@ class Select(SQLQueryComponent):
         self.function = function
 
     def to_sql(self):
-        if isinstance(self.field, str):
+        if isinstance(self.field,str):
             return self.field
         if isinstance(self.field, Date):
             return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
@@ -1286,9 +1283,9 @@ class PocketContextManager(abc.ABC):
 
     def __init__(self, db_name=None,
                  index_name="documents",
-                 schema=DefaultSchema, normalize=None):
+                 schema=DefaultSchema,normalize=None):
         self.pocketsearch = PocketSearch(
-            index_name=index_name, db_name=db_name, schema=schema, normalize=normalize)
+            index_name=index_name, db_name=db_name, schema=schema,normalize=normalize)
 
     def __enter__(self, *args, **kwargs):
         return self.pocketsearch
@@ -1296,15 +1293,13 @@ class PocketContextManager(abc.ABC):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.pocketsearch.close()
 
-
 class QuickPocket(PocketContextManager):
     '''
     In-memory search index
     '''
 
-    def __init__(self, schema=DefaultSchema, normalize=None):
-        self.pocketsearch = PocketSearch(schema=schema, normalize=normalize)
-
+    def __init__(self,schema=DefaultSchema,normalize=None):
+        self.pocketsearch = PocketSearch(schema=schema,normalize=normalize)        
 
 class PocketReader(PocketContextManager):
     '''
@@ -1463,9 +1458,9 @@ class PocketSearch:
         Helper class to store lookups for a specific field
         '''
 
-        def __init__(self, names, value, normalize=None):
+        def __init__(self, names, value,normalize=None):
             self.names = names
-            if isinstance(value, str) and normalize:
+            if isinstance(value,str) and normalize:
                 self.value = normalize(value)
             else:
                 self.value = value
@@ -1482,7 +1477,7 @@ class PocketSearch:
         self.db_id = uuid.uuid4()
         self.connection = None
         self.normalize = normalize
-        if self.normalize is not None and not (isinstance(self.normalize, types.FunctionType)):
+        if self.normalize is not None and not(isinstance(self.normalize, types.FunctionType)):
             raise ValueError("normalize must be a function.")
         if writeable or db_name is None:
             # If it is an in-memory database, we allow writes by default
@@ -1640,8 +1635,7 @@ class PocketSearch:
                         f"'{field}' is present in the schema but has not been defined in the legacy table.")
                 if definition.data_type != fields[field]:
                     legacy_definition = fields[field]
-                    raise self.DatabaseError(f"'{field}' has data type '{
-                                             definition.data_type}' in schema but '{legacy_definition}' was expected.")
+                    raise self.DatabaseError(f"'{field}' has data type '{definition.data_type}' in schema but '{legacy_definition}' was expected.")
         return True
 
     def _create_table(self, index_name):
@@ -1678,8 +1672,7 @@ class PocketSearch:
             # We will create a contentless fts5 virtual table:
             self._check_fields()
             managed, content = mgmt_type
-        sql_table = f"CREATE TABLE IF NOT EXISTS {
-            index_name}({standard_fields})"
+        sql_table = f"CREATE TABLE IF NOT EXISTS {index_name}({standard_fields})"
         sql_virtual_table = f'''
         CREATE VIRTUAL TABLE IF NOT EXISTS {index_name}_fts USING fts5({fts_fields},
             content='{content}', content_rowid='{id_field}' {additional_options} {prefix_index});
@@ -1740,7 +1733,7 @@ class PocketSearch:
         logger.debug("Commiting transaction")
         self.cursor.execute("commit")
 
-    def tokens(self, top_n=25):
+    def tokens(self,top_n=25):
         '''
         Return token statistics on the current index
         '''
@@ -1754,7 +1747,7 @@ class PocketSearch:
                    "total_count": row["total_count"]}
             row = self.cursor.fetchone()
 
-    def get_arguments(self, kwargs, for_search=True, normalize=None):
+    def get_arguments(self, kwargs, for_search=True,normalize=None):
         '''
         Extracts field names and lookups from the keywords arguments and returns
         a dictionary of argument objects.
@@ -1770,10 +1763,10 @@ class PocketSearch:
                     raise self.FieldError(
                         "Lookups are not allowed in the context of inserts and updates")
                 referenced_fields[comp[0]].append(
-                    self.Lookup(comp[1:], kwargs[kwarg], normalize=normalize))
+                    self.Lookup(comp[1:], kwargs[kwarg],normalize=normalize))
             else:
                 referenced_fields[comp[0]].append(
-                    self.Lookup(["eq"], kwargs[kwarg], normalize=normalize))
+                    self.Lookup(["eq"], kwargs[kwarg],normalize=normalize))
         for f, lookups in referenced_fields.items():
             if f not in self.schema.fields:
                 raise self.FieldError(
@@ -1793,7 +1786,7 @@ class PocketSearch:
                     field, referenced_fields[field.name])
         return arguments
 
-    def build(self, index_reader, verbose=False):
+    def build(self, index_reader,verbose=False):
         '''
         Create an index reading a document from an index_builder instance.
         '''
@@ -1802,7 +1795,7 @@ class PocketSearch:
         for elem in index_reader.read():
             self.insert_or_update(**elem)
             if verbose:
-                timer.snapshot()
+                timer.snapshot()            
 
     def insert_or_update(self, **kwargs):
         '''
@@ -1812,17 +1805,15 @@ class PocketSearch:
         if self.schema.id_field is None:
             raise self.DatabaseError("""No IDField has been defined in the schema -
                                      cannot perform insert_or_update.""")
-        arguments = self.get_arguments(
-            kwargs, for_search=False, normalize=self.normalize)
+        arguments = self.get_arguments(kwargs, for_search=False,normalize=self.normalize)
         joined_fields = ",".join(arguments)
         values = [argument.lookups[0].value for argument in arguments.values()]
         # get rowid:
         unique_id = (kwargs.get(self.schema.id_field),)
-        sql = f"select rowid from {self.index_name} where {
-            self.schema.id_field} = ?"
-        self.cursor.execute(sql, unique_id)
-        row = self.cursor.fetchone()
-        if row is not None:
+        sql = f"select rowid from {self.index_name} where {self.schema.id_field} = ?"
+        self.cursor.execute(sql,unique_id)
+        row = self.cursor.fetchone()    
+        if row is not None:   
             joined_fields = "rowid," + joined_fields
             values = [row["id"]] + values
         placeholder_values = "?" * len(values)
@@ -1879,8 +1870,7 @@ class PocketSearch:
             table_name = args[0]
         else:
             table_name = self.schema.name
-        arguments = self.get_arguments(
-            kwargs, for_search=False, normalize=self.normalize)
+        arguments = self.get_arguments(kwargs, for_search=False,normalize=self.normalize)
         joined_fields = ",".join([f for f in arguments])
         values = [argument.lookups[0].value for argument in arguments.values()]
         placeholder_values = "?" * len(values)
@@ -1901,8 +1891,7 @@ class PocketSearch:
         self.assure_writeable()
         id_field = self.schema.get_id_field() or "id"
         docid = kwargs.pop("rowid")
-        arguments = self.get_arguments(
-            kwargs, for_search=False, normalize=self.normalize)
+        arguments = self.get_arguments(kwargs, for_search=False,normalize=self.normalize)
         values = [argument.lookups[0].value for argument in arguments.values()] + \
             [docid]
         stmt = []
@@ -1971,7 +1960,7 @@ class PocketSearch:
             query_components[len(query_components) -
                              1] = query_components[-1:][0]+"*"
         query = " AND ".join(query_components)
-        return self.search(**{f"{field}__allow_boolean__allow_prefix__allow_initial_token": query})
+        return self.search(**{f"{field}__allow_boolean__allow_prefix__allow_initial_token" : query})
 
     def suggest(self, query):
         '''
@@ -2009,10 +1998,9 @@ class PocketSearch:
         if len(args) > 0:
             for q_expr in args[0]:
                 q_expr.arguments = self.get_arguments(
-                    self._clear_kwargs(q_expr.kwargs), normalize=self.normalize)
+                    self._clear_kwargs(q_expr.kwargs),normalize=self.normalize)
             return Query(search_instance=self, arguments=[], q_arguments=args[0])
-        arguments = self.get_arguments(
-            cleared_kwargs, normalize=self.normalize)
+        arguments = self.get_arguments(cleared_kwargs,normalize=self.normalize)
         return Query(search_instance=self, arguments=arguments, q_arguments=[])
 
 
