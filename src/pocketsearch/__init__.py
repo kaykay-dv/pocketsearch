@@ -12,8 +12,6 @@ import types
 import re
 import datetime
 import sqlite3
-import collections
-import unicodedata
 import os
 import time
 import abc
@@ -33,6 +31,7 @@ from .fields import (
     Real,
     Text,
 )
+from .schema import DefaultSchema, Schema
 from .sql_query_components import (
     And,
     BooleanFilter,
@@ -52,6 +51,7 @@ from .sql_query_components import (
     SQLQueryComponent,
     Table,
 )
+from .tokenizers import Tokenizer, Unicode61
 
 logger = logging.getLogger(__name__)
 
@@ -140,245 +140,6 @@ class Timer:
         s = s+"Total time: %s\n" % self.total_time
         s = s+"----\n"
         return s
-
-
-class Tokenizer(abc.ABC):
-    '''
-    Base class for tokenizers
-    '''
-
-    class TokenizerError(Exception):
-        '''
-        Thrown if the initialization of the tokenizer fails
-        '''
-
-    def __init__(self, name):
-        self.name = name
-        self.properties = {}
-
-    def add_property(self, name, value):
-        '''
-        Add a property to the tokenizer
-        '''
-        if value is not None:
-            self.properties[name] = self.Property(name, value)
-
-    class Property:
-        '''
-        Property associated with tokenizer
-        '''
-
-        def __init__(self, name, value):
-            self.name = name
-            self.value = value
-
-    def to_sql(self):
-        properties = " ".join(["%s '%s'" % (p.name, p.value)
-                              for p in self.properties.values()])
-        return "tokenize=\"{name} {properties}\"".format(name=self.name, properties=properties)
-
-
-class Unicode61(Tokenizer):
-    '''
-    Unicode61 tokenizer (see https://www.sqlite.org/fts5.html for more details)
-    '''
-
-    VALID_DIACRITICS = ["0", "1", "2"]
-
-    def __init__(self, remove_diacritics="2", categories=None, tokenchars=None, separators=""):
-        super().__init__("unicode61")
-        if remove_diacritics not in self.VALID_DIACRITICS and remove_diacritics is not None:
-            raise self.TokenizerError(
-                "Invalid valid for remove_diacritics. Valid options are %s" % self.VALID_DIACRITICS)
-        self.add_property("remove_diacritics", remove_diacritics)
-        if categories is None:
-            categories = "L* N* Co"
-        self.add_property("categories", categories)
-        self.add_property("tokenchars", tokenchars)
-        self.add_property("separators", separators)
-
-    def is_tokenchar(self, character):
-        '''
-        Test if the given character is a token character (True) or 
-        separator (False)
-        '''
-        categories = self.properties.get("categories").value.split()
-        if "tokenchars" in self.properties:
-            tokenchars = self.properties["tokenchars"].value.split()
-        else:
-            tokenchars = []
-        additional_separators = self.properties.get("separators")
-        if additional_separators is not None:
-            if character in additional_separators.value:
-                return False
-        if character in tokenchars:
-            return True
-        ch_category = unicodedata.category(character)
-        return ch_category in categories or ch_category[0]+"*" in categories
-
-    def tokenize(self, input_str, keep=[]):
-        '''
-        Based on the settings of unicode61 tokenizer given, split the 
-        input_str into individual tokens and return them as a list of 
-        tokens.
-        You can provide additional characters to be considered as tokens 
-        in the keep arguments. 
-        When quote is set to True, tokens containing punctuation will be 
-        automatically quoted.
-        '''
-        output_str = ""
-        for character in str(input_str):
-            if character in keep:
-                output_str += character
-                continue
-            if self.is_tokenchar(character):
-                output_str += character
-            else:
-                output_str += " "
-        return [ch for ch in output_str.split(" ") if len(ch) > 0]
-
-
-class Schema:
-    '''
-    A schema defines what fields can be searched in the search index.
-    '''
-
-    # id = IdField()
-    rank = Rank()
-
-    class Meta:
-        tokenizer = Unicode61()
-        spell_check = False
-        prefix_index = None
-
-    RESERVED_KEYWORDS = [
-        'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
-        'BEFORE', 'BEGIN', 'BETWEEN', 'BY', 'CASCADE', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN', 'COMMIT',
-        'CONFLICT', 'CONSTRAINT', 'CREATE', 'CROSS', 'CURRENT_DATE', 'CURRENT_TIME', 'CURRENT_TIMESTAMP', 'DATABASE',
-        'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DETACH', 'DISTINCT', 'DROP', 'EACH', 'ELSE', 'END',
-        'CONTENT', 'ESCAPE', 'EXCEPT', 'EXCLUSIVE', 'EXISTS', 'EXPLAIN', 'FAIL', 'FOR', 'FOREIGN', 'FROM', 'FULL', 'GLOB',
-        'GROUP', 'HAVING', 'IF', 'IGNORE', 'IMMEDIATE', 'IN', 'INDEX', 'INDEXED', 'INITIALLY', 'INNER', 'INSERT',
-        'INSTEAD', 'INTERSECT', 'INTO', 'IS', 'ISNULL', 'JOIN', 'KEY', 'LEFT', 'LIKE', 'LIMIT', 'MATCH', 'NATURAL',
-        'NO', 'NOT', 'NOTNULL', 'NULL', 'OF', 'OFFSET', 'ON', 'OR', 'ORDER', 'OUTER', 'PLAN', 'PRAGMA', 'PRIMARY',
-        'QUERY', 'RAISE', 'RECURSIVE', 'REFERENCES', 'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT',
-        'RIGHT', 'ROLLBACK', 'ROW', 'SAVEPOINT', 'SELECT', 'SET', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TO',
-        'TRANSACTION', 'TRIGGER', 'UNION', 'UNIQUE', 'UPDATE', 'USING', 'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL', 'WHEN',
-        'WHERE', 'WITH', 'WITHOUT', 'NAME', 'FIELDS', 'FIELDS_INDEX', 'FIELDS_WITH_DEFAULT',
-        'REVERSE_LOOKUP', 'ID_FIELD'
-    ]
-
-    class SchemaError(Exception):
-        '''
-        Thrown, if the schema cannot be generated.
-        '''
-
-    def _set_meta_defaults(self):
-        try:
-            self._meta.prefix_index
-        except AttributeError:
-            self._meta.prefix_index = None
-        try:
-            self._meta.tokenizer
-        except AttributeError:
-            # FIXME: might have undesired
-            # side effects / using another
-            # exception here?
-            self._meta.tokenizer = Unicode61()
-        try:
-            self._meta.spell_check
-        except AttributeError:
-            self._meta.spell_check = False
-
-    def __init__(self, name):
-        self._meta = self.Meta()
-        self._set_meta_defaults()
-        self.name = name
-        self.fields = collections.OrderedDict()
-        self.field_index = {}  # required by some SQL functions, e.g. highlight
-        self.fields_with_default = {}
-        self.reverse_lookup = {}
-        self.id_field = None
-        field_index = 0
-        for elem in dir(self):
-            # Create and store a (shallow) copy of the class variable
-            # in order to avoid any side effects. All schema classes
-            # share the IDField and the RankField and both have
-            # instance variable. If we would not have a copy of these
-            # class-wide objects we run into scenarios (e.g. changing index)
-            # that would affect all schemas an application uses
-            obj = copy.copy(getattr(self, elem))
-            if isinstance(obj, Field):
-                if obj.data_type is None:
-                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (
-                        obj.__class__.__name__, elem))
-                if elem.startswith("_") or "__" in elem:
-                    raise self.SchemaError(
-                        "Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." %
-                        elem)
-                if elem.upper() in self.RESERVED_KEYWORDS:
-                    raise self.SchemaError(
-                        "'%s' is a reserved name - Please choose another name." % elem)
-                self.fields[elem] = obj
-                self.fields[elem].schema = self
-                self.fields[elem].name = elem
-                self.reverse_lookup[obj] = elem
-                if obj.is_id_field:
-                    if self.id_field is not None:
-                        raise self.SchemaError(
-                            "You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
-                    self.id_field = obj.name
-                if obj.fts_enabled():
-                    self.field_index[obj.name] = field_index
-                    field_index += 1
-        if not self.get_id_field():
-            obj = IdField()
-            obj.name = "id"
-            self.fields["id"] = obj
-            self.fields["id"].schema = self
-            self.reverse_lookup[obj] = "id"
-
-        for field in self:
-            if field.default is not None:
-                self.fields_with_default[field.name] = field
-
-    def get_id_field(self):
-        '''
-        Returns True if the current schema has explicitly 
-        defined an IdField
-        '''
-        for elem in dir(self):
-            obj = getattr(self, elem)
-            if isinstance(obj, IdField):
-                return elem
-        return None
-
-    def get_field(self, field_name, raise_exception=False):
-        '''
-        Returns field object for the given field name. If raise_exception is set to True,
-        an exception is raised if the field is not defined in the index.
-        '''
-        if raise_exception:
-            if not field_name in self.fields:
-                raise self.SchemaError("'%s' is not defined in this schema '%s'" % (
-                    field_name, self.__class__.__name__))
-        return self.fields.get(field_name)
-
-    def get_fields(self):
-        '''
-        Returns all field objects defined in the schema.
-        '''
-        return list(self.fields.values())
-
-    def __iter__(self):
-        return iter(self.fields.values())
-
-
-class DefaultSchema(Schema):
-    '''
-    Default schema, if none is explicitly provided in the PocketSearch constructor.
-    '''
-
-    text = Text(index=True)
 
 
 class SearchResult:
