@@ -1,5 +1,10 @@
 # Change log
 
+## Version 0.42.0
+* Removed support for Python 3.9
+* Code cleanup (removing linter warnings); (https://github.com/kaykay-dv/pocketsearch/issues/69)
+* Re-organized codebase into multiple modules; (https://github.com/kaykay-dv/pocketsearch/issues/73)
+
 ## Version 0.41.0
 * Removed support for Python 3.8 
 * Added support for Python 3.14
