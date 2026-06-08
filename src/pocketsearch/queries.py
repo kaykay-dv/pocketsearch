@@ -1,11 +1,11 @@
-'''
+"""
 High-level search query API for PocketSearch.
 
 ``SQLQuery`` assembles components into a complete SQL statement. ``Query``
 wraps that builder with a chainable interface (slicing, ordering, highlights).
 ``Q`` and ``QExpr`` express boolean combinations of field lookups across
 multiple fields. ``Document`` and ``SearchResult`` hold query results.
-'''
+"""
 
 import copy
 import logging
@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 
 
 class SearchResult:
-    '''
+    """
     A wrapper over a list holding search results
-    '''
+    """
 
     def __init__(self):
         self.results = []
@@ -53,22 +53,24 @@ class SearchResult:
 
 
 class Document:
-    '''
+    """
     Returned in the search results.
-    '''
+    """
 
     def __init__(self, fields):
         self.fields = fields
 
     def __repr__(self):
-        return "<Document: %s>" % "," .join(["(%s,%s)" % (f, getattr(self, f)) for f in self.fields])
+        return "<Document: %s>" % ",".join(
+            ["(%s,%s)" % (f, getattr(self, f)) for f in self.fields]
+        )
 
 
 class SQLQuery:
-    '''
+    """
     Helper class that constructs the SQLQuery from
     individual SQLQueryComponent objects
-    '''
+    """
 
     def __init__(self, search_instance):
         self.search_instance = search_instance
@@ -84,68 +86,78 @@ class SQLQuery:
         self.connect_fts_clause = None
 
     def count(self):
-        '''
+        """
         Add a count(*) expression to the current query
-        '''
+        """
         self.v_select.clear()
         self.v_select.append(Count(sql_query=self))
 
     def select(self, field, clear=False):
-        '''
+        """
         Adds field to the selected fields clause in the statement.
         If clear is set to True, any items that have been added
         prior will be cleared.
-        '''
+        """
         if clear:
             self.v_select.clear()
         self.v_select.append(Select(field=field, sql_query=self))
 
     def highlight(self, field, marker_start, marker_end):
-        '''
+        """
         Marks given field for highlightening results
-        '''
+        """
         for select in self.v_select:
             if select.field.name == field.name:
                 select.function = Highlight(
-                    marker_start=marker_start, marker_end=marker_end)
+                    marker_start=marker_start, marker_end=marker_end
+                )
 
     def snippet(self, field, text_before, text_after, snippet_length=16):
-        '''
+        """
         Marks given field for extracting snippets
-        '''
+        """
         for select in self.v_select:
             if select.field.name == field.name:
                 select.function = Snippet(
-                    text_before=text_before, text_after=text_after, snippet_length=snippet_length)
+                    text_before=text_before,
+                    text_after=text_after,
+                    snippet_length=snippet_length,
+                )
 
     def table(self, table_name, clear=False):
-        '''
+        """
         Adds a reference to the from clause in the SQL statement.
         If clear is set to True, any items that have been added
         prior will be cleared.
-        '''
+        """
         if clear:
             self.v_from_tables.clear()
         self.v_from_tables.append(Table(table_name=table_name, sql_query=self))
 
-    def join(self, table_left, table_right, left_field, right_field, clear=False):
-        '''
+    def join(
+        self, table_left, table_right, left_field, right_field, clear=False
+    ):
+        """
         Adds a join in the SQL statement.
         If clear is set to True, any items that have been added
         prior will be cleared.
-        '''
+        """
         if clear:
             self.v_joins.clear()
-        self.v_joins.append(Join(table_left=table_left,
-                                 table_right=table_right,
-                                 left_field=left_field,
-                                 right_field=right_field,
-                                 sql_query=self))
+        self.v_joins.append(
+            Join(
+                table_left=table_left,
+                table_right=table_right,
+                left_field=left_field,
+                right_field=right_field,
+                sql_query=self,
+            )
+        )
 
     def where(self, field, lookup, operator, clear=False):
-        '''
+        """
         Set filter items.
-        '''
+        """
         if clear:
             self.v_where.clear()
         else:
@@ -161,8 +173,14 @@ class SQLQuery:
                         self.connect_fts_clause = operator(self)
                     else:
                         self.v_where_fts.append(operator(self))
-                self.v_where_fts.append(filter_clazz(
-                    field=field, value=lookup.value, lookup=lookup, sql_query=self))
+                self.v_where_fts.append(
+                    filter_clazz(
+                        field=field,
+                        value=lookup.value,
+                        lookup=lookup,
+                        sql_query=self,
+                    )
+                )
             else:
                 if operator is not None:
                     if len(self.v_where_fts) > 0 and len(self.v_where) == 0:
@@ -172,37 +190,46 @@ class SQLQuery:
                 else:
                     if len(self.v_where) > 0:
                         self.v_where.append(And(self))
-                self.v_where.append(filter_clazz(
-                    field=field, value=lookup.value, lookup=lookup, sql_query=self))
+                self.v_where.append(
+                    filter_clazz(
+                        field=field,
+                        value=lookup.value,
+                        lookup=lookup,
+                        sql_query=self,
+                    )
+                )
 
     def order_by(self, field, sort_dir=None, clear=False):
-        '''
-        Adds an order_by clause to the current statement. sort_dir can either be "+" (ascending)
-        or "-" (descending)
-        '''
+        """
+        Adds an order_by clause to the current statement.
+
+        sort_dir can be "+" (ascending) or "-" (descending).
+        """
         if clear:
             self.v_order_by.clear()
         self.v_order_by.append(
-            OrderBy(field=field, sort_dir=sort_dir, sql_query=self))
+            OrderBy(field=field, sort_dir=sort_dir, sql_query=self)
+        )
 
     def limit_and_offset(self, limit, offset):
-        '''
+        """
         Set limit and offset of query
-        '''
+        """
         self.v_limit_and_offset = LimitAndOffset(
-            limit=limit, offset=offset, sql_query=self)
+            limit=limit, offset=offset, sql_query=self
+        )
 
     def add_value(self, value):
-        '''
+        """
         Adds a value to the SQL string. This value will be later added to
         the arguments list of the execute_sql method.
-        '''
+        """
         self.query_args.append(value)
 
     def to_sql(self):
-        '''
+        """
         Render statement as SQL string
-        '''
+        """
         self.query_args = []
         stmt = ["SELECT"]
         stmt.append(",".join([s.to_sql() for s in self.v_select]))
@@ -234,11 +261,11 @@ class SQLQuery:
 
 
 class QExpr:
-
     def __init__(self, **kwargs):
         if len(kwargs) > 1:
             raise Query.QueryError(
-                "Only one keyword argument allowed in Q objects.")
+                "Only one keyword argument allowed in Q objects."
+            )
         self.kwargs = kwargs
         self.operator = None
 
@@ -247,10 +274,10 @@ class QExpr:
 
 
 class Q:
-    '''
-    Q classes are used to express OR queries applied to 
+    """
+    Q classes are used to express OR queries applied to
     multiple fields of a schema
-    '''
+    """
 
     def __init__(self, **kwargs):
         self.q_exprs = [QExpr(**kwargs)]
@@ -275,16 +302,16 @@ class Q:
 
 
 class Query:
-    '''
+    """
     The Query class is responsible for managing and constructing SQL queries
     against the index. Most of the work is delegated to the SQLQuery class
     which builds the actual SQL query.
-    '''
+    """
 
     class QueryError(Exception):
-        '''
+        """
         Raised if the query could not be correctly interpreted.
-        '''
+        """
 
     def __init__(self, search_instance, arguments, q_arguments):
         self.search_instance = search_instance
@@ -298,18 +325,27 @@ class Query:
             for argument in arguments.values():
                 for lookup in argument.lookups:
                     self.sql_query.where(
-                        field=argument.field, lookup=lookup, operator=None)
+                        field=argument.field, lookup=lookup, operator=None
+                    )
         else:
             for q_expr in q_arguments:
                 for argument in q_expr.arguments.values():
                     for lookup in argument.lookups:
                         self.sql_query.where(
-                            field=argument.field, lookup=lookup, operator=q_expr.operator)
+                            field=argument.field,
+                            lookup=lookup,
+                            operator=q_expr.operator,
+                        )
         self.sql_query.table(table_name=self.search_instance.schema.name)
-        self.sql_query.table(table_name="%s_fts" %
-                             self.search_instance.schema.name)
+        self.sql_query.table(
+            table_name="%s_fts" % self.search_instance.schema.name
+        )
         self.sql_query.join(
-            self.sql_query.v_from_tables[0], self.sql_query.v_from_tables[1], id_field, "rowid")
+            self.sql_query.v_from_tables[0],
+            self.sql_query.v_from_tables[1],
+            id_field,
+            "rowid",
+        )
         self.sql_query.order_by("+rank")
         self.sql_query.limit_and_offset(limit=10, offset=0)
         self._default_order_by_set = True
@@ -322,9 +358,9 @@ class Query:
         return self._default_order_by_set & self._default_values_set
 
     def count(self):
-        '''
+        """
         Sets the query object into count mode.
-        '''
+        """
         self.is_aggregate_query = True
         self.sql_query.count()
         for query in self.unions:
@@ -332,40 +368,45 @@ class Query:
         return self._query()
 
     def order_by(self, *args):
-        '''
+        """
         Add order by clauses. To indicate ascending or descending order,
         arguments should start with either "+" or ".".
-        '''
+        """
         for a in args:
             if a.startswith("+") or a.startswith("-"):
                 field = self.search_instance.schema.get_field(
-                    a[1:], raise_exception=True)
+                    a[1:], raise_exception=True
+                )
                 sort_dir = a[0]
             else:
                 field = self.search_instance.schema.get_field(
-                    a, raise_exception=True)
+                    a, raise_exception=True
+                )
                 sort_dir = "+"
-            # If the _defaults_set parameter is True, only the default sort order
-            # in the constructor has been yet. In that case we clear the order by
-            # list and set the new order by clause.
+            # If _defaults_set is True, only the constructor default sort order
+            # is set. Clear the order by list and apply the new clause.
             self.sql_query.order_by(
-                field, sort_dir, clear=self._default_order_by_set)
+                field, sort_dir, clear=self._default_order_by_set
+            )
             self._default_order_by_set = False
         return self
 
     def _adapt_union_queries(self):
-        '''
+        """
         Re-organizes the structure of the order by
         and limit clauses.
-        '''
+        """
         if len(self.unions) > 0:
-            # Copy order by clause and limit / offsets to the last query in the union
-            last_query = self.unions[len(self.unions)-1]
+            # Copy order by clause and limit / offsets to the last query in the
+            # union
+            last_query = self.unions[len(self.unions) - 1]
             if not self.is_aggregate_query:
                 last_query.sql_query.v_order_by = copy.copy(
-                    self.sql_query.v_order_by)
+                    self.sql_query.v_order_by
+                )
                 last_query.sql_query.v_limit_and_offset = copy.copy(
-                    self.sql_query.v_limit_and_offset)
+                    self.sql_query.v_limit_and_offset
+                )
             else:
                 last_query.sql_query.v_order_by.clear()
         # Clear all other clauses
@@ -377,23 +418,29 @@ class Query:
 
     def __or__(self, obj):
         logger.warning(
-            "Applying | operator on .search method is deprecated since version 0.9. Consider using Q objects instead.")
+            "Applying | operator on .search method is deprecated since "
+            "version 0.9. Consider using Q objects instead."
+        )
         if not isinstance(obj, Query):
             raise self.QueryError(
-                "Only instances of class Query can be used with the OR operator.")
+                "Only instances of class Query can be used with the OR operator."
+            )
         if not obj._defaults_set() or not self._defaults_set():
             raise self.QueryError(
-                "You cannot use .values and .order_by methods in the context of a union.")
+                "You cannot use .values and .order_by methods in the "
+                "context of a union."
+            )
         self.unions.append(obj)
         return self
 
     def values(self, *args):
-        '''
+        """
         Set the values you want to have in the search result list.
-        '''
+        """
         for a in args:
             field = self.search_instance.schema.get_field(
-                a, raise_exception=True)
+                a, raise_exception=True
+            )
             self.sql_query.select(field, clear=self._default_values_set)
             self._default_values_set = False
         # Propagate this to union queries as well:
@@ -402,34 +449,48 @@ class Query:
         return self
 
     def highlight(self, *args, marker_start="*", marker_end="*"):
-        '''
+        """
         Marks given field for highlight
-        '''
+        """
         for a in args:
             field_obj = self.search_instance.schema.get_field(
-                a, raise_exception=True)
+                a, raise_exception=True
+            )
             if not field_obj.fts_enabled():
                 raise self.QueryError(
-                    "highlight can only be applied to Text fields with index set to True.")
+                    "highlight can only be applied to Text fields with "
+                    "index set to True."
+                )
             self.sql_query.highlight(
-                field_obj, marker_start=marker_start, marker_end=marker_end)
+                field_obj, marker_start=marker_start, marker_end=marker_end
+            )
         return self
 
-    def snippet(self, *args, text_before="*", text_after="*", snippet_length=16):
-        '''
+    def snippet(
+        self, *args, text_before="*", text_after="*", snippet_length=16
+    ):
+        """
         Marks given field for snippet
-        '''
+        """
         if snippet_length <= 0 or snippet_length >= 64:
             raise self.QueryError(
-                "snippet_length must be greater than 0 and lesser than 64.")
+                "snippet_length must be greater than 0 and lesser than 64."
+            )
         for a in args:
             field_obj = self.search_instance.schema.get_field(
-                a, raise_exception=True)
+                a, raise_exception=True
+            )
             if not field_obj.fts_enabled():
                 raise self.QueryError(
-                    "snippet can only be applied to Text fields with index set to True.")
-            self.sql_query.snippet(field_obj, text_before=text_before,
-                                   text_after=text_after, snippet_length=snippet_length)
+                    "snippet can only be applied to Text fields with "
+                    "index set to True."
+                )
+            self.sql_query.snippet(
+                field_obj,
+                text_before=text_before,
+                text_after=text_after,
+                snippet_length=snippet_length,
+            )
         return self
 
     def _build_results(self, results):
@@ -451,10 +512,14 @@ class Query:
             query_args = query_args + u_ar
         if self.is_aggregate_query:
             count = 0
-            for sub_count in self.search_instance.execute_sql(stmt, *query_args):
-                count = count+sub_count["COUNT(*)"]
+            for sub_count in self.search_instance.execute_sql(
+                stmt, *query_args
+            ):
+                count = count + sub_count["COUNT(*)"]
             return count
-        return self._build_results(self.search_instance.execute_sql(stmt, *query_args))
+        return self._build_results(
+            self.search_instance.execute_sql(stmt, *query_args)
+        )
 
     def __getitem__(self, index):
         self.is_aggregate_query = False
@@ -464,16 +529,19 @@ class Query:
                 index_stop = int(index.stop)
             except Exception as exc:
                 raise self.QueryError(
-                    "Slicing arguments must be positive integers and not None.") from exc
+                    "Slicing arguments must be positive integers and not None."
+                ) from exc
             self.sql_query.limit_and_offset(
-                limit=index_stop, offset=index_start)
+                limit=index_stop, offset=index_start
+            )
             return self._query()
         else:
             try:
                 self.sql_query.limit_and_offset(limit=1, offset=int(index))
             except Exception as exc:
                 raise self.QueryError(
-                    "Index arguments must be positive integers and not None.") from exc
+                    "Index arguments must be positive integers and not None."
+                ) from exc
         return self._query()[0]
 
     def __iter__(self):

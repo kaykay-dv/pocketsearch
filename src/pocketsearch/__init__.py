@@ -1,4 +1,4 @@
-'''
+"""
 PocketSearch: a pure-Python full-text search library based on SQLite FTS5.
 
 This package exposes the public API. Implementation details live in the
@@ -6,12 +6,14 @@ submodules (fields, schema, queries, pocket_search, and others); import
 from here as ``from pocketsearch import PocketSearch, Schema, Text``.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
-COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY,
-WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
-THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-'''
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND
+NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR ANYONE
+DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY,
+WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
 
 from .fields import (  # noqa: F401
     Blob,
@@ -35,7 +37,14 @@ from .pocket_search import (  # noqa: F401
     SpellChecker,
     connection_pool,
 )
-from .queries import Document, Q, QExpr, Query, SQLQuery, SearchResult  # noqa: F401
+from .queries import (  # noqa: F401
+    Document,
+    Q,
+    QExpr,
+    Query,
+    SQLQuery,
+    SearchResult,
+)
 from .readers import FileSystemReader, IndexReader  # noqa: F401
 from .schema import DefaultSchema, Schema  # noqa: F401
 from .sql_query_components import (  # noqa: F401
@@ -58,7 +67,12 @@ from .sql_query_components import (  # noqa: F401
     Table,
 )
 from .tokenizers import Tokenizer, Unicode61  # noqa: F401
-from .utils import Timer, convert_date, convert_timestamp, normalize  # noqa: F401
+from .utils import (  # noqa: F401
+    Timer,
+    convert_date,
+    convert_timestamp,
+    normalize,
+)
 
 __all__ = [
     "And",

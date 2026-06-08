@@ -1,10 +1,10 @@
-'''
+"""
 Schema definitions for PocketSearch indexes.
 
 A ``Schema`` class declares the fields, tokenizer, spell-checking, and
 prefix-index options for a search index. ``DefaultSchema`` is used when no
 schema is explicitly provided.
-'''
+"""
 
 import collections
 import copy
@@ -14,9 +14,9 @@ from .tokenizers import Unicode61
 
 
 class Schema:
-    '''
+    """
     A schema defines what fields can be searched in the search index.
-    '''
+    """
 
     # id = IdField()
     rank = Rank()
@@ -27,25 +27,143 @@ class Schema:
         prefix_index = None
 
     RESERVED_KEYWORDS = [
-        'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
-        'BEFORE', 'BEGIN', 'BETWEEN', 'BY', 'CASCADE', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN', 'COMMIT',
-        'CONFLICT', 'CONSTRAINT', 'CREATE', 'CROSS', 'CURRENT_DATE', 'CURRENT_TIME', 'CURRENT_TIMESTAMP', 'DATABASE',
-        'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DETACH', 'DISTINCT', 'DROP', 'EACH', 'ELSE', 'END',
-        'CONTENT', 'ESCAPE', 'EXCEPT', 'EXCLUSIVE', 'EXISTS', 'EXPLAIN', 'FAIL', 'FOR', 'FOREIGN', 'FROM', 'FULL', 'GLOB',
-        'GROUP', 'HAVING', 'IF', 'IGNORE', 'IMMEDIATE', 'IN', 'INDEX', 'INDEXED', 'INITIALLY', 'INNER', 'INSERT',
-        'INSTEAD', 'INTERSECT', 'INTO', 'IS', 'ISNULL', 'JOIN', 'KEY', 'LEFT', 'LIKE', 'LIMIT', 'MATCH', 'NATURAL',
-        'NO', 'NOT', 'NOTNULL', 'NULL', 'OF', 'OFFSET', 'ON', 'OR', 'ORDER', 'OUTER', 'PLAN', 'PRAGMA', 'PRIMARY',
-        'QUERY', 'RAISE', 'RECURSIVE', 'REFERENCES', 'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT',
-        'RIGHT', 'ROLLBACK', 'ROW', 'SAVEPOINT', 'SELECT', 'SET', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TO',
-        'TRANSACTION', 'TRIGGER', 'UNION', 'UNIQUE', 'UPDATE', 'USING', 'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL', 'WHEN',
-        'WHERE', 'WITH', 'WITHOUT', 'NAME', 'FIELDS', 'FIELDS_INDEX', 'FIELDS_WITH_DEFAULT',
-        'REVERSE_LOOKUP', 'ID_FIELD'
+        "ABORT",
+        "ACTION",
+        "ADD",
+        "AFTER",
+        "ALL",
+        "ALTER",
+        "ANALYZE",
+        "AND",
+        "AS",
+        "ASC",
+        "ATTACH",
+        "AUTOINCREMENT",
+        "BEFORE",
+        "BEGIN",
+        "BETWEEN",
+        "BY",
+        "CASCADE",
+        "CASE",
+        "CAST",
+        "CHECK",
+        "COLLATE",
+        "COLUMN",
+        "COMMIT",
+        "CONFLICT",
+        "CONSTRAINT",
+        "CREATE",
+        "CROSS",
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "CURRENT_TIMESTAMP",
+        "DATABASE",
+        "DEFAULT",
+        "DEFERRABLE",
+        "DEFERRED",
+        "DELETE",
+        "DESC",
+        "DETACH",
+        "DISTINCT",
+        "DROP",
+        "EACH",
+        "ELSE",
+        "END",
+        "CONTENT",
+        "ESCAPE",
+        "EXCEPT",
+        "EXCLUSIVE",
+        "EXISTS",
+        "EXPLAIN",
+        "FAIL",
+        "FOR",
+        "FOREIGN",
+        "FROM",
+        "FULL",
+        "GLOB",
+        "GROUP",
+        "HAVING",
+        "IF",
+        "IGNORE",
+        "IMMEDIATE",
+        "IN",
+        "INDEX",
+        "INDEXED",
+        "INITIALLY",
+        "INNER",
+        "INSERT",
+        "INSTEAD",
+        "INTERSECT",
+        "INTO",
+        "IS",
+        "ISNULL",
+        "JOIN",
+        "KEY",
+        "LEFT",
+        "LIKE",
+        "LIMIT",
+        "MATCH",
+        "NATURAL",
+        "NO",
+        "NOT",
+        "NOTNULL",
+        "NULL",
+        "OF",
+        "OFFSET",
+        "ON",
+        "OR",
+        "ORDER",
+        "OUTER",
+        "PLAN",
+        "PRAGMA",
+        "PRIMARY",
+        "QUERY",
+        "RAISE",
+        "RECURSIVE",
+        "REFERENCES",
+        "REGEXP",
+        "REINDEX",
+        "RELEASE",
+        "RENAME",
+        "REPLACE",
+        "RESTRICT",
+        "RIGHT",
+        "ROLLBACK",
+        "ROW",
+        "SAVEPOINT",
+        "SELECT",
+        "SET",
+        "TABLE",
+        "TEMP",
+        "TEMPORARY",
+        "THEN",
+        "TO",
+        "TRANSACTION",
+        "TRIGGER",
+        "UNION",
+        "UNIQUE",
+        "UPDATE",
+        "USING",
+        "VACUUM",
+        "VALUES",
+        "VIEW",
+        "VIRTUAL",
+        "WHEN",
+        "WHERE",
+        "WITH",
+        "WITHOUT",
+        "NAME",
+        "FIELDS",
+        "FIELDS_INDEX",
+        "FIELDS_WITH_DEFAULT",
+        "REVERSE_LOOKUP",
+        "ID_FIELD",
     ]
 
     class SchemaError(Exception):
-        '''
+        """
         Thrown, if the schema cannot be generated.
-        '''
+        """
 
     def _set_meta_defaults(self):
         try:
@@ -84,15 +202,21 @@ class Schema:
             obj = copy.copy(getattr(self, elem))
             if isinstance(obj, Field):
                 if obj.data_type is None:
-                    raise self.SchemaError("class %s (field=%s) has no data_type set" % (
-                        obj.__class__.__name__, elem))
+                    raise self.SchemaError(
+                        "class %s (field=%s) has no data_type set"
+                        % (obj.__class__.__name__, elem)
+                    )
                 if elem.startswith("_") or "__" in elem:
                     raise self.SchemaError(
-                        "Cannot use '%s' as field name. Field name may not start with an underscore and may not contain double underscores." %
-                        elem)
+                        "Cannot use '%s' as field name. Field name may not start "
+                        "with an underscore and may not contain double "
+                        "underscores." % elem
+                    )
                 if elem.upper() in self.RESERVED_KEYWORDS:
                     raise self.SchemaError(
-                        "'%s' is a reserved name - Please choose another name." % elem)
+                        "'%s' is a reserved name - Please choose another name."
+                        % elem
+                    )
                 self.fields[elem] = obj
                 self.fields[elem].schema = self
                 self.fields[elem].name = elem
@@ -100,7 +224,9 @@ class Schema:
                 if obj.is_id_field:
                     if self.id_field is not None:
                         raise self.SchemaError(
-                            "You can only provide one IDField per schema. The current IDField is: %s" % self.id_field)
+                            "You can only provide one IDField per schema. "
+                            "The current IDField is: %s" % self.id_field
+                        )
                     self.id_field = obj.name
                 if obj.fts_enabled():
                     self.field_index[obj.name] = field_index
@@ -117,10 +243,10 @@ class Schema:
                 self.fields_with_default[field.name] = field
 
     def get_id_field(self):
-        '''
-        Returns True if the current schema has explicitly 
+        """
+        Returns True if the current schema has explicitly
         defined an IdField
-        '''
+        """
         for elem in dir(self):
             obj = getattr(self, elem)
             if isinstance(obj, IdField):
@@ -128,20 +254,23 @@ class Schema:
         return None
 
     def get_field(self, field_name, raise_exception=False):
-        '''
-        Returns field object for the given field name. If raise_exception is set to True,
-        an exception is raised if the field is not defined in the index.
-        '''
+        """
+        Return the field object for the given field name.
+
+        If raise_exception is True, raise when the field is undefined.
+        """
         if raise_exception:
             if not field_name in self.fields:
-                raise self.SchemaError("'%s' is not defined in this schema '%s'" % (
-                    field_name, self.__class__.__name__))
+                raise self.SchemaError(
+                    "'%s' is not defined in this schema '%s'"
+                    % (field_name, self.__class__.__name__)
+                )
         return self.fields.get(field_name)
 
     def get_fields(self):
-        '''
+        """
         Returns all field objects defined in the schema.
-        '''
+        """
         return list(self.fields.values())
 
     def __iter__(self):
@@ -149,8 +278,8 @@ class Schema:
 
 
 class DefaultSchema(Schema):
-    '''
-    Default schema, if none is explicitly provided in the PocketSearch constructor.
-    '''
+    """
+    Default schema when none is provided to PocketSearch.
+    """
 
     text = Text(index=True)

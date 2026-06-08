@@ -1,10 +1,10 @@
-'''
+"""
 Low-level SQL query components for PocketSearch.
 
 Each ``SQLQueryComponent`` subclass renders one part of a SELECT statement
 (WHERE, ORDER BY, JOIN, and so on). Lookup constants (``LU_*``, ``LOOKUPS``)
 define which field lookups are valid for each field type.
-'''
+"""
 
 import abc
 
@@ -12,52 +12,52 @@ from .fields import Date, Datetime, Int, Text
 
 
 class SQLQueryComponent(abc.ABC):
-    '''
+    """
     Used by the SQLQuery class. Each component represents a part of
     the overall SQL statment, e.g. the values selected or the order by
     clause.
-    '''
+    """
 
     def __init__(self, sql_query):
         self.sql_query = sql_query
 
     def to_sql(self):
-        '''
-        This class must be implemented by any class subclassing SQLQueryComponent.
-        It should return a string containing valid SQL.
-        '''
+        """
+        Subclasses must return a string containing valid SQL.
+        """
         raise NotImplementedError()
 
 
 class Function:
-    '''
-    SQL function applied to fields in the select part 
+    """
+    SQL function applied to fields in the select part
     of the query
-    '''
+    """
 
 
 class Highlight(Function):
-    '''
+    """
     Highlight SQL function
-    '''
+    """
 
     def __init__(self, marker_start, marker_end):
         self.marker_start = marker_start
         self.marker_end = marker_end
 
     def to_sql(self, field):
-        return "highlight({table}_fts, {index}, '{m_start}', '{m_end}') as {field}".format(field=field.name,
-                                                                                           table=field.schema.name,
-                                                                                           index=field.schema.field_index[
-                                                                                               field.name],
-                                                                                           m_start=self.marker_start,
-                                                                                           m_end=self.marker_end)
+        return "highlight({table}_fts, {index}, '{m_start}', '{m_end}') as {field}".format(
+            field=field.name,
+            table=field.schema.name,
+            index=field.schema.field_index[field.name],
+            m_start=self.marker_start,
+            m_end=self.marker_end,
+        )
 
 
 class Snippet(Function):
-    '''
+    """
     Snippet SQL function
-    '''
+    """
 
     def __init__(self, text_before, text_after, snippet_length=16):
         self.text_before = text_before
@@ -65,19 +65,23 @@ class Snippet(Function):
         self.snippet_length = snippet_length
 
     def to_sql(self, field):
-        return "snippet({table}_fts, {index}, '{t_before}', '{t_after}','...',{l}) as {field}".format(field=field.name,
-                                                                                                      table=field.schema.name,
-                                                                                                      index=field.schema.field_index[
-                                                                                                          field.name],
-                                                                                                      t_before=self.text_before,
-                                                                                                      l=self.snippet_length,
-                                                                                                      t_after=self.text_after)
+        return (
+            "snippet({table}_fts, {index}, '{t_before}', "
+            "'{t_after}','...',{l}) as {field}"
+        ).format(
+            field=field.name,
+            table=field.schema.name,
+            index=field.schema.field_index[field.name],
+            t_before=self.text_before,
+            l=self.snippet_length,
+            t_after=self.text_after,
+        )
 
 
 class Select(SQLQueryComponent):
-    '''
+    """
     A single field selected in the query.
-    '''
+    """
 
     def __init__(self, field, sql_query, function=None):
         super().__init__(sql_query)
@@ -85,30 +89,36 @@ class Select(SQLQueryComponent):
         self.function = function
 
     def to_sql(self):
-        if isinstance(self.field,str):
+        if isinstance(self.field, str):
             return self.field
         if isinstance(self.field, Date):
-            return "{full_name} as \"{name} [date]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
+            return '{full_name} as "{name} [date]"'.format(
+                full_name=self.field.get_full_qualified_name(),
+                name=self.field.name,
+            )
         elif isinstance(self.field, Datetime):
-            return "{full_name} as \"{name} [timestamp]\"".format(full_name=self.field.get_full_qualified_name(), name=self.field.name)
+            return '{full_name} as "{name} [timestamp]"'.format(
+                full_name=self.field.get_full_qualified_name(),
+                name=self.field.name,
+            )
         if self.function is None:
             return self.field.get_full_qualified_name()
         return self.function.to_sql(self.field)
 
 
 class Count(SQLQueryComponent):
-    '''
+    """
     Count statement in the select part
-    '''
+    """
 
     def to_sql(self):
         return "COUNT(*)"
 
 
 class Table(SQLQueryComponent):
-    '''
+    """
     Table referenced in the FROM clause
-    '''
+    """
 
     def __init__(self, table_name, sql_query):
         super().__init__(sql_query)
@@ -148,20 +158,16 @@ LOOKUPS = {
     LU_DAY: [Date, Datetime],
     LU_HOUR: [Datetime],
     LU_MINUTE: [Datetime],
-
 }
 
 
 class Filter(SQLQueryComponent):
-    '''
+    """
     Abstract base class for fields referenced in
     the WHERE part of the SQL statement
-    '''
+    """
 
-    def __init__(self, field,
-                 value,
-                 sql_query,
-                 lookup):
+    def __init__(self, field, value, sql_query, lookup):
         super().__init__(sql_query)
         self.field = field
         self.value = value
@@ -180,13 +186,16 @@ class Filter(SQLQueryComponent):
 
 
 class MatchFilter(Filter):
-    '''
+    """
     Full text match filter in where clause
-    '''
+    """
 
     def _escape(self, value):
-        tokens_1 = self.sql_query.search_instance.schema._meta.tokenizer.tokenize(value,
-                                                                                  keep=self.operators)
+        tokens_1 = (
+            self.sql_query.search_instance.schema._meta.tokenizer.tokenize(
+                value, keep=self.operators
+            )
+        )
         tokens = []
         multiple_token_quote = False
         for token in tokens_1:
@@ -214,15 +223,12 @@ class MatchFilter(Filter):
 
 
 class BooleanFilter(SQLQueryComponent):
-    '''
+    """
     Referenced field in WHERE clause that
     is not part of the FTS5 index.
-    '''
+    """
 
-    def __init__(self, field,
-                 value,
-                 sql_query,
-                 lookup):
+    def __init__(self, field, value, sql_query, lookup):
         super().__init__(sql_query)
         if LU_GTE in lookup.names:
             self.op = ">="
@@ -243,15 +249,12 @@ class BooleanFilter(SQLQueryComponent):
 
 
 class DateFilter(BooleanFilter):
-    '''
+    """
     Referenced field in WHERE clause filtering
     dates.
-    '''
+    """
 
-    def __init__(self, field,
-                 value,
-                 sql_query,
-                 lookup):
+    def __init__(self, field, value, sql_query, lookup):
         super().__init__(field, value, sql_query, lookup)
         if LU_YEAR in lookup.names:
             self.date_selector = "%Y"
@@ -266,15 +269,17 @@ class DateFilter(BooleanFilter):
         if self.date_selector is None:
             return super().to_sql()
         self.sql_query.add_value("%s" % self.value)
-        return "CAST(strftime('%s',%s) AS INTEGER) %s ?" % (self.date_selector,
-                                                            self.field.get_full_qualified_name(),
-                                                            self.op)
+        return "CAST(strftime('%s',%s) AS INTEGER) %s ?" % (
+            self.date_selector,
+            self.field.get_full_qualified_name(),
+            self.op,
+        )
 
 
 class OrderBy(SQLQueryComponent):
-    '''
+    """
     Referenced field in order by clause.
-    '''
+    """
 
     def __init__(self, field, sql_query, sort_dir=None):
         super().__init__(sql_query)
@@ -302,9 +307,9 @@ class OrderBy(SQLQueryComponent):
 
 
 class LimitAndOffset(SQLQueryComponent):
-    '''
+    """
     LIMIT and OFFSET in SQL query
-    '''
+    """
 
     def __init__(self, limit, offset, sql_query):
         super().__init__(sql_query)
@@ -318,15 +323,13 @@ class LimitAndOffset(SQLQueryComponent):
 
 
 class Join(SQLQueryComponent):
-    '''
+    """
     Join on tables in SQL query
-    '''
+    """
 
-    def __init__(self, table_left,
-                 table_right,
-                 left_field,
-                 right_field,
-                 sql_query):
+    def __init__(
+        self, table_left, table_right, left_field, right_field, sql_query
+    ):
         super().__init__(sql_query)
         self.table_left = table_left
         self.table_right = table_right
@@ -334,25 +337,27 @@ class Join(SQLQueryComponent):
         self.right_field = right_field
 
     def to_sql(self):
-        return "{table_left}.{left_field}={table_right}.{right_field}".format(table_left=self.table_left.to_sql(),
-                                                                              table_right=self.table_right.to_sql(),
-                                                                              left_field=self.left_field,
-                                                                              right_field=self.right_field)
+        return "{table_left}.{left_field}={table_right}.{right_field}".format(
+            table_left=self.table_left.to_sql(),
+            table_right=self.table_right.to_sql(),
+            left_field=self.left_field,
+            right_field=self.right_field,
+        )
 
 
 class And(SQLQueryComponent):
-    '''
+    """
     AND keyword in sql query
-    '''
+    """
 
     def to_sql(self):
         return "AND"
 
 
 class Or(SQLQueryComponent):
-    '''
+    """
     OR keyword in sql query
-    '''
+    """
 
     def to_sql(self):
         return "OR"
