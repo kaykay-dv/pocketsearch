@@ -13,7 +13,7 @@ WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WI
 THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
-from .fields import (
+from .fields import (  # noqa: F401
     Blob,
     Date,
     Datetime,
@@ -25,7 +25,7 @@ from .fields import (
     Real,
     Text,
 )
-from .pocket_search import (
+from .pocket_search import (  # noqa: F401
     ConnectionPool,
     PocketContextManager,
     PocketReader,
@@ -35,10 +35,10 @@ from .pocket_search import (
     SpellChecker,
     connection_pool,
 )
-from .queries import Document, Q, QExpr, Query, SQLQuery, SearchResult
-from .readers import FileSystemReader, IndexReader
-from .schema import DefaultSchema, Schema
-from .sql_query_components import (
+from .queries import Document, Q, QExpr, Query, SQLQuery, SearchResult  # noqa: F401
+from .readers import FileSystemReader, IndexReader  # noqa: F401
+from .schema import DefaultSchema, Schema  # noqa: F401
+from .sql_query_components import (  # noqa: F401
     And,
     BooleanFilter,
     Count,
@@ -57,5 +57,59 @@ from .sql_query_components import (
     SQLQueryComponent,
     Table,
 )
-from .tokenizers import Tokenizer, Unicode61
-from .utils import Timer, convert_date, convert_timestamp, normalize
+from .tokenizers import Tokenizer, Unicode61  # noqa: F401
+from .utils import Timer, convert_date, convert_timestamp, normalize  # noqa: F401
+
+__all__ = [
+    "And",
+    "Blob",
+    "BooleanFilter",
+    "ConnectionPool",
+    "Count",
+    "Date",
+    "DateFilter",
+    "Datetime",
+    "DefaultSchema",
+    "Document",
+    "Field",
+    "FileSystemReader",
+    "Filter",
+    "Function",
+    "Highlight",
+    "IdField",
+    "IndexReader",
+    "Int",
+    "Join",
+    "LOOKUPS",
+    "LimitAndOffset",
+    "MatchFilter",
+    "Numeric",
+    "Or",
+    "OrderBy",
+    "PocketContextManager",
+    "PocketReader",
+    "PocketSearch",
+    "PocketWriter",
+    "Q",
+    "QExpr",
+    "Query",
+    "QuickPocket",
+    "Rank",
+    "Real",
+    "SQLQuery",
+    "SQLQueryComponent",
+    "Schema",
+    "SearchResult",
+    "Select",
+    "Snippet",
+    "SpellChecker",
+    "Table",
+    "Text",
+    "Timer",
+    "Tokenizer",
+    "Unicode61",
+    "connection_pool",
+    "convert_date",
+    "convert_timestamp",
+    "normalize",
+]
