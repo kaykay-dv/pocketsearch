@@ -88,10 +88,6 @@ pocketsearch is intended for projects looking for a server-less, seamless integr
 
 Please refer to https://github.com/kaykay-dv/pocketsearch/tree/main/tests/DCEP to see how pocketsearch can be used to index more than 160,000 documents. 
 
-
-# Status
-The package is actively maintained as of May 2025.
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Unit tests main](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-main.yml/badge.svg)
 ![Unit tests development](https://github.com/kaykay-dv/pocketsearch/actions/workflows/unittests-development.yml/badge.svg)
