@@ -1,3 +1,11 @@
+'''
+Low-level SQL query components for PocketSearch.
+
+Each ``SQLQueryComponent`` subclass renders one part of a SELECT statement
+(WHERE, ORDER BY, JOIN, and so on). Lookup constants (``LU_*``, ``LOOKUPS``)
+define which field lookups are valid for each field type.
+'''
+
 import abc
 
 from .fields import Date, Datetime, Int, Text

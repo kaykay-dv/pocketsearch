@@ -1,3 +1,11 @@
+'''
+Index readers for populating PocketSearch from external sources.
+
+``IndexReader`` subclasses yield document dictionaries consumed by
+``PocketSearch.build()``. ``FileSystemReader`` walks a directory tree and
+indexes text files using the bundled ``FSSchema``.
+'''
+
 import abc
 import os
 

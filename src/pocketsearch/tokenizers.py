@@ -1,3 +1,10 @@
+'''
+FTS5 tokenizer configuration for PocketSearch schemas.
+
+Tokenizer classes translate to the ``tokenize`` option on FTS5 virtual tables
+and can also tokenize query strings in Python (e.g. for spell checking).
+'''
+
 import abc
 import unicodedata
 

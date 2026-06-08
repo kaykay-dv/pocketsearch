@@ -1,3 +1,11 @@
+'''
+Field types for PocketSearch schemas.
+
+Each field class describes a column in the SQLite index table, including its
+data type, FTS indexing behaviour, and SQL constraints. Subclass ``Field`` to
+define custom field types with a ``data_type`` attribute.
+'''
+
 import abc
 
 

@@ -1,4 +1,10 @@
 '''
+PocketSearch: a pure-Python full-text search library based on SQLite FTS5.
+
+This package exposes the public API. Implementation details live in the
+submodules (fields, schema, queries, pocket_search, and others); import
+from here as ``from pocketsearch import PocketSearch, Schema, Text``.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE

@@ -1,3 +1,11 @@
+'''
+Shared utilities for PocketSearch.
+
+Provides SQLite type converters for date and timestamp columns, the default
+``normalize`` function for text fields, and ``Timer`` for progress reporting
+during index builds.
+'''
+
 import datetime
 import re
 import sqlite3

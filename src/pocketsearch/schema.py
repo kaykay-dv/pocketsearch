@@ -1,3 +1,11 @@
+'''
+Schema definitions for PocketSearch indexes.
+
+A ``Schema`` class declares the fields, tokenizer, spell-checking, and
+prefix-index options for a search index. ``DefaultSchema`` is used when no
+schema is explicitly provided.
+'''
+
 import collections
 import copy
 

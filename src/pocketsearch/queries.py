@@ -1,3 +1,12 @@
+'''
+High-level search query API for PocketSearch.
+
+``SQLQuery`` assembles components into a complete SQL statement. ``Query``
+wraps that builder with a chainable interface (slicing, ordering, highlights).
+``Q`` and ``QExpr`` express boolean combinations of field lookups across
+multiple fields. ``Document`` and ``SearchResult`` hold query results.
+'''
+
 import copy
 import logging
 

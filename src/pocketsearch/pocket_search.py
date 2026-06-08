@@ -1,3 +1,13 @@
+'''
+Core PocketSearch index implementation.
+
+``PocketSearch`` manages the SQLite database, table creation, and document
+CRUD operations. ``ConnectionPool`` serialises write access across threads.
+Context managers (``PocketReader``, ``PocketWriter``, ``QuickPocket``) provide
+convenient open/close semantics. ``SpellChecker`` builds and queries a
+bigram-based spelling index when enabled on a schema.
+'''
+
 import abc
 import logging
 import sqlite3
