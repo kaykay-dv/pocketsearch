@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pocketsearch"
+version = "0.42.0"
+description = "A pure-Python full-text indexing search library based on SQLite and the FTS5 extension, supporting both on-disk and in-memory search indexes."
+readme = "README.md"
+authors = [
+    { name = "kaykay-dv", email = "kaykay2306@gmail.com" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Indexing",
+]
+
+[project.urls]
+Homepage = "https://github.com/kaykay-dv/pocketsearch/"
+"Bug Tracker" = "https://github.com/kaykay-dv/pocketsearch/issues"
+"Change log" = "https://github.com/kaykay-dv/pocketsearch/blob/main/CHANGELOG.md"
+Documentation = "https://pocketsearch.readthedocs.io/"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
