@@ -1,5 +1,8 @@
 # Change log
 
+## Version 0.42.0
+* Removed support for Python 3.9
+
 ## Version 0.41.0
 * Removed support for Python 3.8 
 * Added support for Python 3.14
